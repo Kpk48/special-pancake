@@ -1,0 +1,6 @@
+# The current baseline runs on Python's standard library only.
+# Optional future upgrade:
+# pillow
+# numpy
+# scikit-learn
+# tensorflow

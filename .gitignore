@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.venv/
+venv/
+node_modules/
+.next/
+.vercel/
+out/
+tsconfig.tsbuildinfo
+npm-debug.log*
+.vercel
