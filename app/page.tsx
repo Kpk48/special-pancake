@@ -30,12 +30,17 @@ const classes = [
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [prediction, setPrediction] = useState<Prediction | null>(null);
+  const [livePrediction, setLivePrediction] = useState<Prediction | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isLiveAnalyzing, setIsLiveAnalyzing] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const liveCanvasRef = useRef<HTMLCanvasElement>(null);
+  const frameIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const liveAnalysisRef = useRef<boolean>(false);
 
   const sortedProbabilities = useMemo(() => {
     if (!prediction) {
@@ -47,16 +52,60 @@ export default function Home() {
   async function startCamera() {
     try {
       setError("");
+      setPrediction(null);
+      setLivePrediction(null);
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } }
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         setIsCameraActive(true);
+        setIsLiveAnalyzing(true);
+        liveAnalysisRef.current = true;
+        startLiveClassification();
       }
     } catch (err) {
       setError("Unable to access camera. Please check permissions.");
     }
+  }
+
+  async function startLiveClassification() {
+    if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
+    
+    frameIntervalRef.current = setInterval(async () => {
+      if (!liveAnalysisRef.current || !videoRef.current || !liveCanvasRef.current) return;
+      
+      try {
+        const context = liveCanvasRef.current.getContext("2d");
+        if (!context) return;
+
+        liveCanvasRef.current.width = videoRef.current.videoWidth;
+        liveCanvasRef.current.height = videoRef.current.videoHeight;
+        context.drawImage(videoRef.current, 0, 0);
+
+        liveCanvasRef.current.toBlob(async (blob) => {
+          if (!blob) return;
+          
+          const formData = new FormData();
+          formData.append("image", blob, "frame.jpg");
+
+          try {
+            const response = await fetch("/api/predict", {
+              method: "POST",
+              body: formData
+            });
+            const data = await response.json();
+            if (response.ok) {
+              setLivePrediction(data as Prediction);
+            }
+          } catch (error) {
+            // Silently fail for live prediction
+          }
+        }, "image/jpeg", 0.7);
+      } catch (error) {
+        // Silently fail for live prediction
+      }
+    }, 500); // Analyze every 500ms
   }
 
   async function capturePhoto() {
@@ -71,19 +120,37 @@ export default function Home() {
           if (blob) {
             const capturedFile = new File([blob], "camera-capture.jpg", { type: "image/jpeg" });
             setFile(capturedFile);
-            stopCamera();
+            stopCameraAndClassify();
           }
         }, "image/jpeg", 0.9);
       }
     }
   }
 
+  function stopCameraAndClassify() {
+    stopCamera();
+    // Automatically submit for classification after a short delay
+    setTimeout(() => {
+      const form = document.getElementById("classifyForm") as HTMLFormElement;
+      if (form) {
+        form.dispatchEvent(new Event("submit", { bubbles: true }));
+      }
+    }, 100);
+  }
+
   function stopCamera() {
+    if (frameIntervalRef.current) {
+      clearInterval(frameIntervalRef.current);
+      frameIntervalRef.current = null;
+    }
+    liveAnalysisRef.current = false;
+    setIsLiveAnalyzing(false);
     if (videoRef.current && videoRef.current.srcObject) {
       const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
       tracks.forEach(track => track.stop());
       setIsCameraActive(false);
     }
+    setLivePrediction(null);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -157,7 +224,7 @@ export default function Home() {
               <span className="formatHint">JPG, PNG, PPM, RAW</span>
             </div>
 
-            <form onSubmit={handleSubmit} className="uploadForm">
+            <form onSubmit={handleSubmit} className="uploadForm" id="classifyForm">
               {!isCameraActive ? (
                 <>
                   <label className="dropZone">
@@ -189,14 +256,35 @@ export default function Home() {
                 </>
               ) : (
                 <>
-                  <div className="cameraContainer">
+                  <div className="cameraContainer" onClick={capturePhoto}>
                     <video 
                       ref={videoRef} 
                       autoPlay 
                       playsInline 
                       className="videoStream"
                     />
-                    <canvas ref={canvasRef} className="hiddenCanvas" />
+                    <canvas ref={liveCanvasRef} className="hiddenCanvas" />
+                    
+                    {/* Live Prediction Overlay */}
+                    {livePrediction && (
+                      <div className="liveOverlay">
+                        <div className="livePredictionBox">
+                          <div className="livePredictionLabel">Live Detection</div>
+                          <div className="livePredictionResult">{livePrediction.label}</div>
+                          <div className="liveConfidence">
+                            {Math.round((Math.max(...Object.values(livePrediction.probabilities)) || 0) * 100)}% Confidence
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Click to Capture Instruction */}
+                    <div className="captureInstruction">
+                      <div className="instructionBox">
+                        <Camera size={24} />
+                        <span>Click to Capture & Classify</span>
+                      </div>
+                    </div>
                   </div>
                   <div className="buttonGroup">
                     <button 
