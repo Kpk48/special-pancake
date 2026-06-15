@@ -1,6 +1,7 @@
 import { readFile } from "fs/promises";
 import path from "path";
 import { NextResponse } from "next/server";
+import sharp from "sharp";
 
 export const runtime = "nodejs";
 
@@ -108,6 +109,82 @@ function parsePpm(data: Buffer): PpmImage {
   return { width, height, pixels };
 }
 
+async function convertToPpm(data: Buffer, filename: string): Promise<Buffer> {
+  const lowerName = filename.toLowerCase();
+  
+  // If already PPM, return as-is
+  if (lowerName.endsWith('.ppm')) {
+    return data;
+  }
+
+  try {
+    // Use sharp to read and process the image
+    let image = sharp(data);
+    
+    // Get metadata to check dimensions
+    const metadata = await image.metadata();
+    if (!metadata.width || !metadata.height) {
+      throw new Error("Unable to read image dimensions");
+    }
+
+    // Resize if too large (maintain aspect ratio)
+    const maxDim = 400;
+    let width = metadata.width;
+    let height = metadata.height;
+    
+    if (width > maxDim || height > maxDim) {
+      const scale = Math.min(maxDim / width, maxDim / height);
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+      image = image.resize(width, height, { fit: 'inside', withoutEnlargement: true });
+    }
+
+    // Convert to RGB and get raw pixel data
+    const imageData = await image
+      .toColorspace('srgb')
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const pixelWidth = imageData.info.width;
+    const pixelHeight = imageData.info.height;
+    const rawPixels = imageData.data;
+
+    // Build PPM P6 format (binary)
+    const header = `P6\n${pixelWidth} ${pixelHeight}\n255\n`;
+    const headerBuffer = Buffer.from(header, 'ascii');
+
+    // If we have RGB data (3 channels), use it directly
+    // If we have RGBA (4 channels), we need to extract RGB
+    let pixelData: Buffer;
+    
+    if (imageData.info.channels === 3) {
+      pixelData = rawPixels;
+    } else if (imageData.info.channels === 4) {
+      // Convert RGBA to RGB by skipping alpha channel
+      pixelData = Buffer.alloc(pixelWidth * pixelHeight * 3);
+      let offset = 0;
+      for (let i = 0; i < rawPixels.length; i += 4) {
+        pixelData[offset++] = rawPixels[i];     // R
+        pixelData[offset++] = rawPixels[i + 1]; // G
+        pixelData[offset++] = rawPixels[i + 2]; // B
+      }
+    } else {
+      // For single channel (grayscale), replicate to RGB
+      pixelData = Buffer.alloc(pixelWidth * pixelHeight * 3);
+      let offset = 0;
+      for (let i = 0; i < rawPixels.length; i++) {
+        pixelData[offset++] = rawPixels[i];
+        pixelData[offset++] = rawPixels[i];
+        pixelData[offset++] = rawPixels[i];
+      }
+    }
+
+    return Buffer.concat([headerBuffer, pixelData]);
+  } catch (error) {
+    throw new Error(`Failed to convert image to PPM format: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
 function channelStats(values: number[]): [number, number] {
   const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
   const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
@@ -189,26 +266,37 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!file.name.toLowerCase().endsWith(".ppm")) {
+    const filename = file.name.toLowerCase();
+    const supportedFormats = ['.ppm', '.jpg', '.jpeg', '.png', '.raw'];
+    const hasValidFormat = supportedFormats.some(fmt => filename.endsWith(fmt));
+
+    if (!hasValidFormat) {
       return NextResponse.json(
         {
-          error: "This system supports PPM format images. Please upload a .ppm file. You can convert JPEG or PNG files to PPM using image editing tools."
+          error: `Unsupported format. Please upload an image in one of these formats: PPM, JPG, JPEG, PNG, or RAW.`
         },
         { status: 400 }
       );
     }
 
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    
+    // Convert image to PPM format if needed
+    const ppmBuffer = await convertToPpm(fileBuffer, filename);
+    
     const model = await loadModel();
-    const image = parsePpm(Buffer.from(await file.arrayBuffer()));
+    const image = parsePpm(ppmBuffer);
     const features = extractFeatures(image);
     return NextResponse.json(predict(model, features));
   } catch (error) {
     let errorMessage = "Unable to classify the image. ";
     if (error instanceof Error) {
-      if (error.message.includes("PPM")) {
-        errorMessage += "The file must be a valid PPM image.";
+      if (error.message.includes("convert")) {
+        errorMessage += "Could not process the image. Please ensure it's a valid image file.";
+      } else if (error.message.includes("PPM")) {
+        errorMessage += "The file format is not valid.";
       } else if (error.message.includes("8-bit")) {
-        errorMessage += "Only 8-bit PPM images are supported.";
+        errorMessage += "Only 8-bit images are supported.";
       } else {
         errorMessage += error.message;
       }

@@ -4,9 +4,10 @@ import {
   BrainCircuit,
   FileImage,
   Loader2,
-  UploadCloud
+  UploadCloud,
+  Camera
 } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 
 type Prediction = {
   label: string;
@@ -31,6 +32,10 @@ export default function Home() {
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const sortedProbabilities = useMemo(() => {
     if (!prediction) {
@@ -38,6 +43,48 @@ export default function Home() {
     }
     return Object.entries(prediction.probabilities).sort((a, b) => b[1] - a[1]);
   }, [prediction]);
+
+  async function startCamera() {
+    try {
+      setError("");
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } }
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        setIsCameraActive(true);
+      }
+    } catch (err) {
+      setError("Unable to access camera. Please check permissions.");
+    }
+  }
+
+  async function capturePhoto() {
+    if (videoRef.current && canvasRef.current) {
+      const context = canvasRef.current.getContext("2d");
+      if (context) {
+        canvasRef.current.width = videoRef.current.videoWidth;
+        canvasRef.current.height = videoRef.current.videoHeight;
+        context.drawImage(videoRef.current, 0, 0);
+        
+        canvasRef.current.toBlob((blob) => {
+          if (blob) {
+            const capturedFile = new File([blob], "camera-capture.jpg", { type: "image/jpeg" });
+            setFile(capturedFile);
+            stopCamera();
+          }
+        }, "image/jpeg", 0.9);
+      }
+    }
+  }
+
+  function stopCamera() {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
+      tracks.forEach(track => track.stop());
+      setIsCameraActive(false);
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -93,7 +140,7 @@ export default function Home() {
             <div className="featureList">
               <div className="feature">
                 <FileImage size={20} />
-                <span>Fast & Accurate Classification</span>
+                <span>Upload or Capture Images</span>
               </div>
               <div className="feature">
                 <BrainCircuit size={20} />
@@ -107,24 +154,69 @@ export default function Home() {
           <div className="glassCard classifierCard">
             <div className="cardHeader">
               <h3>Upload Image</h3>
-              <span className="formatHint">PPM format</span>
+              <span className="formatHint">JPG, PNG, PPM, RAW</span>
             </div>
 
             <form onSubmit={handleSubmit} className="uploadForm">
-              <label className="dropZone">
-                <UploadCloud size={40} />
-                <span>{file ? file.name : "Select or drag image"}</span>
-                <small>PPM format images are supported</small>
-                <input
-                  type="file"
-                  accept=".ppm"
-                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                />
-              </label>
-              <button className="predictButton" type="submit" disabled={isLoading || !file}>
-                {isLoading ? <Loader2 className="spin" size={18} /> : <BrainCircuit size={18} />}
-                {isLoading ? "Analyzing..." : "Classify"}
-              </button>
+              {!isCameraActive ? (
+                <>
+                  <label className="dropZone">
+                    <UploadCloud size={40} />
+                    <span>{file ? file.name : "Select or drag image"}</span>
+                    <small>Supports JPG, JPEG, PNG, PPM, and RAW formats</small>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".ppm,.jpg,.jpeg,.png,.raw,image/*"
+                      onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  <div className="buttonGroup">
+                    <button className="predictButton" type="submit" disabled={isLoading || !file}>
+                      {isLoading ? <Loader2 className="spin" size={18} /> : <BrainCircuit size={18} />}
+                      {isLoading ? "Analyzing..." : "Classify"}
+                    </button>
+                    <button 
+                      type="button" 
+                      className="cameraButton" 
+                      onClick={startCamera}
+                      disabled={isLoading}
+                    >
+                      <Camera size={18} />
+                      Open Camera
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="cameraContainer">
+                    <video 
+                      ref={videoRef} 
+                      autoPlay 
+                      playsInline 
+                      className="videoStream"
+                    />
+                    <canvas ref={canvasRef} className="hiddenCanvas" />
+                  </div>
+                  <div className="buttonGroup">
+                    <button 
+                      type="button" 
+                      className="captureButton"
+                      onClick={capturePhoto}
+                    >
+                      <Camera size={18} />
+                      Capture Photo
+                    </button>
+                    <button 
+                      type="button" 
+                      className="secondaryButton"
+                      onClick={stopCamera}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              )}
             </form>
 
             {error && <div className="alert alertError">{error}</div>}
@@ -168,8 +260,8 @@ export default function Home() {
             <div className="glassCard instructionsCard">
               <h3>How to Use</h3>
               <ol className="instructionsList">
-                <li>Prepare a waste image in PPM format</li>
-                <li>Click the upload area to select your file</li>
+                <li>Upload an image (JPG, JPEG, PNG, PPM, RAW) or capture with camera</li>
+                <li>Click the upload area or use the camera button</li>
                 <li>Click "Classify" to analyze the image</li>
                 <li>View the predicted category and confidence scores</li>
               </ol>
