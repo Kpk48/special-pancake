@@ -109,33 +109,65 @@ export default function Home() {
   }
 
   async function capturePhoto() {
-    if (videoRef.current && canvasRef.current) {
+    if (!videoRef.current || !canvasRef.current) {
+      setError("Failed to capture photo from camera.");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError("");
+      setPrediction(null);
+
       const context = canvasRef.current.getContext("2d");
-      if (context) {
-        canvasRef.current.width = videoRef.current.videoWidth;
-        canvasRef.current.height = videoRef.current.videoHeight;
-        context.drawImage(videoRef.current, 0, 0);
-        
-        canvasRef.current.toBlob((blob) => {
-          if (blob) {
-            const capturedFile = new File([blob], "camera-capture.jpg", { type: "image/jpeg" });
-            setFile(capturedFile);
-            stopCameraAndClassify();
-          }
-        }, "image/jpeg", 0.9);
+      if (!context) {
+        setError("Failed to process camera capture.");
+        setIsLoading(false);
+        return;
       }
+
+      canvasRef.current.width = videoRef.current.videoWidth;
+      canvasRef.current.height = videoRef.current.videoHeight;
+      context.drawImage(videoRef.current, 0, 0);
+
+      canvasRef.current.toBlob(async (blob) => {
+        if (!blob) {
+          setError("Failed to create image from camera capture.");
+          setIsLoading(false);
+          return;
+        }
+
+        try {
+          const formData = new FormData();
+          formData.append("image", blob, "camera-capture.jpg");
+
+          const response = await fetch("/api/predict", {
+            method: "POST",
+            body: formData
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || "Classification failed.");
+          }
+
+          setPrediction(data as Prediction);
+          stopCamera();
+        } catch (error) {
+          setError(error instanceof Error ? error.message : "Classification failed. Please try again.");
+        } finally {
+          setIsLoading(false);
+        }
+      }, "image/jpeg", 0.95);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to capture photo.");
+      setIsLoading(false);
     }
   }
 
   function stopCameraAndClassify() {
     stopCamera();
-    // Automatically submit for classification after a short delay
-    setTimeout(() => {
-      const form = document.getElementById("classifyForm") as HTMLFormElement;
-      if (form) {
-        form.dispatchEvent(new Event("submit", { bubbles: true }));
-      }
-    }, 100);
   }
 
   function stopCamera() {
@@ -262,7 +294,9 @@ export default function Home() {
                       autoPlay 
                       playsInline 
                       className="videoStream"
+                      onClick={capturePhoto}
                     />
+                    <canvas ref={canvasRef} className="hiddenCanvas" />
                     <canvas ref={liveCanvasRef} className="hiddenCanvas" />
                     
                     {/* Live Prediction Overlay */}
@@ -291,14 +325,16 @@ export default function Home() {
                       type="button" 
                       className="captureButton"
                       onClick={capturePhoto}
+                      disabled={isLoading}
                     >
-                      <Camera size={18} />
-                      Capture Photo
+                      {isLoading ? <Loader2 className="spin" size={18} /> : <Camera size={18} />}
+                      {isLoading ? "Classifying..." : "Capture Photo"}
                     </button>
                     <button 
                       type="button" 
                       className="secondaryButton"
                       onClick={stopCamera}
+                      disabled={isLoading}
                     >
                       Cancel
                     </button>
