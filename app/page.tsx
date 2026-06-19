@@ -311,174 +311,69 @@ export default function Home() {
                 </>
               ) : (
                 <>
-                  {/* Camera viewport */}
-                  <div
-                    style={{
-                      position: "relative",
-                      width: "100%",
-                      aspectRatio: "16/9",
-                      background: "#000",
-                      borderRadius: "12px",
-                      overflow: "hidden",
-                    }}
-                  >
+                  {/* Camera viewport — no onClick here, only on the button below */}
+                  <div className="cameraContainer">
                     <video
                       ref={videoRef}
                       autoPlay
                       muted
                       playsInline
-                      style={{
-                        position: "absolute",
-                        inset: 0,
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                        display: "block",
-                      }}
+                      className="videoStream"
                     />
 
-                    {/* Hidden canvases for frame grabbing */}
-                    <canvas ref={canvasRef} style={{ display: "none" }} />
-                    <canvas ref={liveCanvasRef} style={{ display: "none" }} />
+                    {/* Hidden canvases */}
+                    <canvas ref={canvasRef} className="hiddenCanvas" />
+                    <canvas ref={liveCanvasRef} className="hiddenCanvas" />
 
-                    {/* Live detection overlay */}
+                    {/* Live detection label overlay (top-left) */}
                     {isLiveAnalyzing && livePrediction && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: 12,
-                          left: 12,
-                          background: "rgba(0,0,0,0.65)",
-                          backdropFilter: "blur(6px)",
-                          WebkitBackdropFilter: "blur(6px)",
-                          borderRadius: 10,
-                          padding: "10px 16px",
-                          color: "#fff",
-                          pointerEvents: "none",
-                          minWidth: 160,
-                        }}
-                      >
-                        <div style={{ fontSize: 11, opacity: 0.75, marginBottom: 4 }}>
-                          🎯 Live Detection
-                        </div>
-                        <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: 1 }}>
-                          {livePrediction.label.toUpperCase()}
-                        </div>
-                        <div style={{ fontSize: 13, opacity: 0.85, marginTop: 2 }}>
-                          {Math.round(
-                            (Math.max(...Object.values(livePrediction.probabilities)) || 0) * 100
-                          )}% confidence
+                      <div className="liveOverlay">
+                        <div className="livePredictionBox">
+                          <div className="livePredictionLabel">🎯 Live Detection</div>
+                          <div className="livePredictionResult">
+                            {livePrediction.label.toUpperCase()}
+                          </div>
+                          <div className="liveConfidence">
+                            {Math.round(
+                              (Math.max(...Object.values(livePrediction.probabilities)) || 0) * 100
+                            )}% confidence
+                          </div>
                         </div>
                       </div>
                     )}
 
-                    {/* Top-3 probability bars overlay (bottom of video) */}
+                    {/* Top-3 probability bars (bottom of video) */}
                     {isLiveAnalyzing && livePrediction && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          bottom: 12,
-                          left: 12,
-                          right: 12,
-                          background: "rgba(0,0,0,0.55)",
-                          backdropFilter: "blur(6px)",
-                          WebkitBackdropFilter: "blur(6px)",
-                          borderRadius: 10,
-                          padding: "10px 14px",
-                          pointerEvents: "none",
-                        }}
-                      >
+                      <div className="liveBottomBar">
                         {Object.entries(livePrediction.probabilities)
                           .sort((a, b) => b[1] - a[1])
                           .slice(0, 3)
                           .map(([name, score]) => (
-                            <div
-                              key={name}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                                marginBottom: 5,
-                              }}
-                            >
-                              <span
-                                style={{
-                                  color: "#fff",
-                                  fontSize: 12,
-                                  width: 68,
-                                  textTransform: "capitalize",
-                                  flexShrink: 0,
-                                }}
-                              >
-                                {name}
-                              </span>
-                              <div
-                                style={{
-                                  flex: 1,
-                                  height: 6,
-                                  background: "rgba(255,255,255,0.2)",
-                                  borderRadius: 4,
-                                  overflow: "hidden",
-                                }}
-                              >
+                            <div key={name} className="liveBarRow">
+                              <span className="liveBarLabel">{name}</span>
+                              <div className="liveBarTrack">
                                 <div
-                                  style={{
-                                    width: `${Math.round(score * 100)}%`,
-                                    height: "100%",
-                                    background: "#4ade80",
-                                    borderRadius: 4,
-                                    transition: "width 0.3s ease",
-                                  }}
+                                  className="liveBarFill"
+                                  style={{ width: `${Math.round(score * 100)}%` }}
                                 />
                               </div>
-                              <span
-                                style={{
-                                  color: "#fff",
-                                  fontSize: 12,
-                                  width: 34,
-                                  textAlign: "right",
-                                  flexShrink: 0,
-                                }}
-                              >
-                                {Math.round(score * 100)}%
-                              </span>
+                              <span className="liveBarPct">{Math.round(score * 100)}%</span>
                             </div>
                           ))}
                       </div>
                     )}
 
-                    {/* Waiting for first detection hint */}
+                    {/* "Point at waste" hint — shown before first detection */}
                     {isLiveAnalyzing && !livePrediction && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          inset: 0,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          pointerEvents: "none",
-                        }}
-                      >
-                        <div
-                          style={{
-                            background: "rgba(0,0,0,0.5)",
-                            borderRadius: 10,
-                            padding: "10px 18px",
-                            color: "#fff",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            fontSize: 14,
-                          }}
-                        >
-                          <Camera size={20} />
+                      <div className="captureInstruction">
+                        <div className="instructionBox">
+                          <Camera size={24} />
                           <span>Point at waste to classify</span>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  {/* Controls below video */}
                   <div className="buttonGroup">
                     <button
                       type="button"
