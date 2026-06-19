@@ -59,6 +59,12 @@ export default function Home() {
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play().catch((err) => {
+            console.error("Video play error:", err);
+            setError("Failed to start video playback.");
+          });
+        };
         setIsCameraActive(true);
         setIsLiveAnalyzing(true);
         liveAnalysisRef.current = true;
@@ -66,6 +72,7 @@ export default function Home() {
       }
     } catch (err) {
       setError("Unable to access camera. Please check permissions.");
+      console.error("Camera error:", err);
     }
   }
 
@@ -292,9 +299,11 @@ export default function Home() {
                     <video 
                       ref={videoRef} 
                       autoPlay 
+                      muted
                       playsInline 
                       className="videoStream"
                       onClick={capturePhoto}
+                      style={{ display: 'block', width: '100%', height: '100%' }}
                     />
                     <canvas ref={canvasRef} className="hiddenCanvas" />
                     <canvas ref={liveCanvasRef} className="hiddenCanvas" />
