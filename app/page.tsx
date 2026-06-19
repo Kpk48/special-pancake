@@ -27,6 +27,7 @@ const classes = [
   "ceramic",
   "nylon"
 ];
+
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [prediction, setPrediction] = useState<Prediction | null>(null);
@@ -43,9 +44,7 @@ export default function Home() {
   const liveAnalysisRef = useRef<boolean>(false);
 
   const sortedProbabilities = useMemo(() => {
-    if (!prediction) {
-      return [];
-    }
+    if (!prediction) return [];
     return Object.entries(prediction.probabilities).sort((a, b) => b[1] - a[1]);
   }, [prediction]);
 
@@ -54,102 +53,81 @@ export default function Home() {
       setError("");
       setPrediction(null);
       setLivePrediction(null);
-      
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: "environment", 
-          width: { ideal: 1280 }, 
-          height: { ideal: 960 }
-        }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 960 },
+        },
       });
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        
-        // Set camera active state immediately
         setIsCameraActive(true);
+
+        await new Promise<void>((resolve) => {
+          const video = videoRef.current!;
+          if (video.readyState >= 2) {
+            resolve();
+          } else {
+            video.addEventListener("canplay", () => resolve(), { once: true });
+          }
+        });
+
+        await videoRef.current.play();
         setIsLiveAnalyzing(true);
         liveAnalysisRef.current = true;
-        
-        // Play video with proper error handling
-        videoRef.current.onplay = () => {
-          console.log("Video stream started");
-          startLiveClassification();
-        };
-        
-        const playPromise = videoRef.current.play();
-        if (playPromise !== undefined) {
-          playPromise.catch((err) => {
-            console.error("Video autoplay blocked:", err);
-            // Retry after user interaction or small delay
-            setTimeout(() => {
-              videoRef.current?.play().catch((e) => {
-                console.error("Retry failed:", e);
-              });
-            }, 100);
-          });
-        }
+        startLiveClassification();
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       setError(`Camera access failed: ${errorMsg}`);
-      console.error("Camera error:", err);
       setIsCameraActive(false);
     }
   }
 
-  async function startLiveClassification() {
+  function startLiveClassification() {
     if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
-    
+
     frameIntervalRef.current = setInterval(async () => {
       if (!liveAnalysisRef.current || !videoRef.current || !liveCanvasRef.current) return;
-      
+
       try {
-        // Check if video has valid dimensions
-        if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
-          return;
-        }
-        
+        if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) return;
+
         const context = liveCanvasRef.current.getContext("2d");
         if (!context) return;
 
-        // Set canvas dimensions to match video
         liveCanvasRef.current.width = videoRef.current.videoWidth;
         liveCanvasRef.current.height = videoRef.current.videoHeight;
-        
-        // Draw current video frame to canvas
         context.drawImage(videoRef.current, 0, 0);
 
-        // Convert canvas to blob and send for prediction
         liveCanvasRef.current.toBlob(
           async (blob) => {
             if (!blob) return;
-            
             const formData = new FormData();
             formData.append("image", blob, "frame.jpg");
-
             try {
               const response = await fetch("/api/predict", {
                 method: "POST",
-                body: formData
+                body: formData,
               });
-              
               if (response.ok) {
                 const data = await response.json();
                 setLivePrediction(data as Prediction);
               }
-            } catch (error) {
-              console.debug("Live prediction fetch error:", error);
-              // Silently continue - network errors shouldn't break live stream
+            } catch {
+              // silently continue on network errors
             }
           },
           "image/jpeg",
           0.8
         );
-      } catch (error) {
-        console.debug("Live classification error:", error);
+      } catch {
+        // silently continue
       }
-    }, 500); // Analyze every 500ms
+    }, 500);
   }
 
   async function capturePhoto() {
@@ -174,44 +152,44 @@ export default function Home() {
       canvasRef.current.height = videoRef.current.videoHeight;
       context.drawImage(videoRef.current, 0, 0);
 
-      canvasRef.current.toBlob(async (blob) => {
-        if (!blob) {
-          setError("Failed to create image from camera capture.");
-          setIsLoading(false);
-          return;
-        }
-
-        try {
-          const formData = new FormData();
-          formData.append("image", blob, "camera-capture.jpg");
-
-          const response = await fetch("/api/predict", {
-            method: "POST",
-            body: formData
-          });
-
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.error || "Classification failed.");
+      canvasRef.current.toBlob(
+        async (blob) => {
+          if (!blob) {
+            setError("Failed to create image from camera capture.");
+            setIsLoading(false);
+            return;
           }
 
-          setPrediction(data as Prediction);
-          stopCamera();
-        } catch (error) {
-          setError(error instanceof Error ? error.message : "Classification failed. Please try again.");
-        } finally {
-          setIsLoading(false);
-        }
-      }, "image/jpeg", 0.95);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Failed to capture photo.");
+          try {
+            const formData = new FormData();
+            formData.append("image", blob, "camera-capture.jpg");
+
+            const response = await fetch("/api/predict", {
+              method: "POST",
+              body: formData,
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+              throw new Error(data.error || "Classification failed.");
+            }
+
+            setPrediction(data as Prediction);
+            stopCamera();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Classification failed. Please try again.");
+          } finally {
+            setIsLoading(false);
+          }
+        },
+        "image/jpeg",
+        0.95
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to capture photo.");
       setIsLoading(false);
     }
-  }
-
-  function stopCameraAndClassify() {
-    stopCamera();
   }
 
   function stopCamera() {
@@ -223,9 +201,10 @@ export default function Home() {
     setIsLiveAnalyzing(false);
     if (videoRef.current && videoRef.current.srcObject) {
       const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-      tracks.forEach(track => track.stop());
-      setIsCameraActive(false);
+      tracks.forEach((track) => track.stop());
+      videoRef.current.srcObject = null;
     }
+    setIsCameraActive(false);
     setLivePrediction(null);
   }
 
@@ -246,7 +225,7 @@ export default function Home() {
     try {
       const response = await fetch("/api/predict", {
         method: "POST",
-        body: formData
+        body: formData,
       });
       const payload = await response.json();
 
@@ -319,9 +298,9 @@ export default function Home() {
                       {isLoading ? <Loader2 className="spin" size={18} /> : <BrainCircuit size={18} />}
                       {isLoading ? "Analyzing..." : "Classify"}
                     </button>
-                    <button 
-                      type="button" 
-                      className="cameraButton" 
+                    <button
+                      type="button"
+                      className="cameraButton"
                       onClick={startCamera}
                       disabled={isLoading}
                     >
@@ -332,61 +311,186 @@ export default function Home() {
                 </>
               ) : (
                 <>
-                  <div className="cameraContainer" onClick={capturePhoto}>
-                    <video 
-                      ref={videoRef} 
-                      autoPlay 
+                  {/* Camera viewport */}
+                  <div
+                    style={{
+                      position: "relative",
+                      width: "100%",
+                      aspectRatio: "16/9",
+                      background: "#000",
+                      borderRadius: "12px",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <video
+                      ref={videoRef}
+                      autoPlay
                       muted
                       playsInline
-                      controls={false}
-                      className="videoStream"
-                      onClick={capturePhoto}
-                      style={{ 
-                        display: 'block', 
-                        width: '100%', 
-                        height: '100%',
-                        objectFit: 'cover',
-                        backgroundColor: '#000'
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        display: "block",
                       }}
                     />
-                    <canvas ref={canvasRef} className="hiddenCanvas" />
-                    <canvas ref={liveCanvasRef} className="hiddenCanvas" />
-                    
-                    {/* Live Prediction Overlay - Always visible when analyzing */}
+
+                    {/* Hidden canvases for frame grabbing */}
+                    <canvas ref={canvasRef} style={{ display: "none" }} />
+                    <canvas ref={liveCanvasRef} style={{ display: "none" }} />
+
+                    {/* Live detection overlay */}
                     {isLiveAnalyzing && livePrediction && (
-                      <div className="liveOverlay">
-                        <div className="livePredictionBox">
-                          <div className="livePredictionLabel">🎯 Live Detection</div>
-                          <div className="livePredictionResult">{livePrediction.label.toUpperCase()}</div>
-                          <div className="liveConfidence">
-                            {Math.round((Math.max(...Object.values(livePrediction.probabilities)) || 0) * 100)}% Confidence
-                          </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 12,
+                          left: 12,
+                          background: "rgba(0,0,0,0.65)",
+                          backdropFilter: "blur(6px)",
+                          WebkitBackdropFilter: "blur(6px)",
+                          borderRadius: 10,
+                          padding: "10px 16px",
+                          color: "#fff",
+                          pointerEvents: "none",
+                          minWidth: 160,
+                        }}
+                      >
+                        <div style={{ fontSize: 11, opacity: 0.75, marginBottom: 4 }}>
+                          🎯 Live Detection
+                        </div>
+                        <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: 1 }}>
+                          {livePrediction.label.toUpperCase()}
+                        </div>
+                        <div style={{ fontSize: 13, opacity: 0.85, marginTop: 2 }}>
+                          {Math.round(
+                            (Math.max(...Object.values(livePrediction.probabilities)) || 0) * 100
+                          )}% confidence
                         </div>
                       </div>
                     )}
-                    
-                    {/* Click to Capture Instruction */}
-                    {!livePrediction && isLiveAnalyzing && (
-                      <div className="captureInstruction">
-                        <div className="instructionBox">
-                          <Camera size={24} />
+
+                    {/* Top-3 probability bars overlay (bottom of video) */}
+                    {isLiveAnalyzing && livePrediction && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          bottom: 12,
+                          left: 12,
+                          right: 12,
+                          background: "rgba(0,0,0,0.55)",
+                          backdropFilter: "blur(6px)",
+                          WebkitBackdropFilter: "blur(6px)",
+                          borderRadius: 10,
+                          padding: "10px 14px",
+                          pointerEvents: "none",
+                        }}
+                      >
+                        {Object.entries(livePrediction.probabilities)
+                          .sort((a, b) => b[1] - a[1])
+                          .slice(0, 3)
+                          .map(([name, score]) => (
+                            <div
+                              key={name}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                marginBottom: 5,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  color: "#fff",
+                                  fontSize: 12,
+                                  width: 68,
+                                  textTransform: "capitalize",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {name}
+                              </span>
+                              <div
+                                style={{
+                                  flex: 1,
+                                  height: 6,
+                                  background: "rgba(255,255,255,0.2)",
+                                  borderRadius: 4,
+                                  overflow: "hidden",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: `${Math.round(score * 100)}%`,
+                                    height: "100%",
+                                    background: "#4ade80",
+                                    borderRadius: 4,
+                                    transition: "width 0.3s ease",
+                                  }}
+                                />
+                              </div>
+                              <span
+                                style={{
+                                  color: "#fff",
+                                  fontSize: 12,
+                                  width: 34,
+                                  textAlign: "right",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {Math.round(score * 100)}%
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+
+                    {/* Waiting for first detection hint */}
+                    {isLiveAnalyzing && !livePrediction && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          pointerEvents: "none",
+                        }}
+                      >
+                        <div
+                          style={{
+                            background: "rgba(0,0,0,0.5)",
+                            borderRadius: 10,
+                            padding: "10px 18px",
+                            color: "#fff",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            fontSize: 14,
+                          }}
+                        >
+                          <Camera size={20} />
                           <span>Point at waste to classify</span>
                         </div>
                       </div>
                     )}
                   </div>
+
+                  {/* Controls below video */}
                   <div className="buttonGroup">
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       className="captureButton"
                       onClick={capturePhoto}
                       disabled={isLoading}
                     >
                       {isLoading ? <Loader2 className="spin" size={18} /> : <Camera size={18} />}
-                      {isLoading ? "Classifying..." : "Capture Photo"}
+                      {isLoading ? "Classifying..." : "Capture & Classify"}
                     </button>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       className="secondaryButton"
                       onClick={stopCamera}
                       disabled={isLoading}
@@ -415,7 +519,10 @@ export default function Home() {
                       <div className="confidenceRow" key={name}>
                         <span className="categoryName">{name}</span>
                         <div className="track">
-                          <span className="confidence" style={{ width: `${Math.round(score * 100)}%` }} />
+                          <span
+                            className="confidence"
+                            style={{ width: `${Math.round(score * 100)}%` }}
+                          />
                         </div>
                         <strong className="percentage">{Math.round(score * 100)}%</strong>
                       </div>
