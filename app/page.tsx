@@ -7,7 +7,7 @@ import {
   UploadCloud,
   Camera
 } from "lucide-react";
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type Prediction = {
   label: string;
@@ -42,6 +42,20 @@ export default function Home() {
   const liveCanvasRef = useRef<HTMLCanvasElement>(null);
   const frameIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const liveAnalysisRef = useRef<boolean>(false);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  // Cleanup on unmount — prevents "track destroyed without being stopped" warning
+  useEffect(() => {
+    return () => {
+      if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
+      liveAnalysisRef.current = false;
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
+      if (videoRef.current) videoRef.current.srcObject = null;
+    };
+  }, []);
 
   const sortedProbabilities = useMemo(() => {
     if (!prediction) return [];
@@ -63,6 +77,7 @@ export default function Home() {
       });
 
       if (videoRef.current) {
+        streamRef.current = stream;
         videoRef.current.srcObject = stream;
         setIsCameraActive(true);
 
@@ -199,11 +214,11 @@ export default function Home() {
     }
     liveAnalysisRef.current = false;
     setIsLiveAnalyzing(false);
-    if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-      tracks.forEach((track) => track.stop());
-      videoRef.current.srcObject = null;
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     }
+    if (videoRef.current) videoRef.current.srcObject = null;
     setIsCameraActive(false);
     setLivePrediction(null);
   }
