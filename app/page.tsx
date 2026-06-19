@@ -54,25 +54,47 @@ export default function Home() {
       setError("");
       setPrediction(null);
       setLivePrediction(null);
+      
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } }
+        video: { 
+          facingMode: "environment", 
+          width: { ideal: 1280 }, 
+          height: { ideal: 960 }
+        }
       });
+      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play().catch((err) => {
-            console.error("Video play error:", err);
-            setError("Failed to start video playback.");
-          });
-        };
+        
+        // Set camera active state immediately
         setIsCameraActive(true);
         setIsLiveAnalyzing(true);
         liveAnalysisRef.current = true;
-        startLiveClassification();
+        
+        // Play video with proper error handling
+        videoRef.current.onplay = () => {
+          console.log("Video stream started");
+          startLiveClassification();
+        };
+        
+        const playPromise = videoRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            console.error("Video autoplay blocked:", err);
+            // Retry after user interaction or small delay
+            setTimeout(() => {
+              videoRef.current?.play().catch((e) => {
+                console.error("Retry failed:", e);
+              });
+            }, 100);
+          });
+        }
       }
     } catch (err) {
-      setError("Unable to access camera. Please check permissions.");
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setError(`Camera access failed: ${errorMsg}`);
       console.error("Camera error:", err);
+      setIsCameraActive(false);
     }
   }
 
@@ -83,34 +105,49 @@ export default function Home() {
       if (!liveAnalysisRef.current || !videoRef.current || !liveCanvasRef.current) return;
       
       try {
+        // Check if video has valid dimensions
+        if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
+          return;
+        }
+        
         const context = liveCanvasRef.current.getContext("2d");
         if (!context) return;
 
+        // Set canvas dimensions to match video
         liveCanvasRef.current.width = videoRef.current.videoWidth;
         liveCanvasRef.current.height = videoRef.current.videoHeight;
+        
+        // Draw current video frame to canvas
         context.drawImage(videoRef.current, 0, 0);
 
-        liveCanvasRef.current.toBlob(async (blob) => {
-          if (!blob) return;
-          
-          const formData = new FormData();
-          formData.append("image", blob, "frame.jpg");
+        // Convert canvas to blob and send for prediction
+        liveCanvasRef.current.toBlob(
+          async (blob) => {
+            if (!blob) return;
+            
+            const formData = new FormData();
+            formData.append("image", blob, "frame.jpg");
 
-          try {
-            const response = await fetch("/api/predict", {
-              method: "POST",
-              body: formData
-            });
-            const data = await response.json();
-            if (response.ok) {
-              setLivePrediction(data as Prediction);
+            try {
+              const response = await fetch("/api/predict", {
+                method: "POST",
+                body: formData
+              });
+              
+              if (response.ok) {
+                const data = await response.json();
+                setLivePrediction(data as Prediction);
+              }
+            } catch (error) {
+              console.debug("Live prediction fetch error:", error);
+              // Silently continue - network errors shouldn't break live stream
             }
-          } catch (error) {
-            // Silently fail for live prediction
-          }
-        }, "image/jpeg", 0.7);
+          },
+          "image/jpeg",
+          0.8
+        );
       } catch (error) {
-        // Silently fail for live prediction
+        console.debug("Live classification error:", error);
       }
     }, 500); // Analyze every 500ms
   }
@@ -300,20 +337,27 @@ export default function Home() {
                       ref={videoRef} 
                       autoPlay 
                       muted
-                      playsInline 
+                      playsInline
+                      controls={false}
                       className="videoStream"
                       onClick={capturePhoto}
-                      style={{ display: 'block', width: '100%', height: '100%' }}
+                      style={{ 
+                        display: 'block', 
+                        width: '100%', 
+                        height: '100%',
+                        objectFit: 'cover',
+                        backgroundColor: '#000'
+                      }}
                     />
                     <canvas ref={canvasRef} className="hiddenCanvas" />
                     <canvas ref={liveCanvasRef} className="hiddenCanvas" />
                     
-                    {/* Live Prediction Overlay */}
-                    {livePrediction && (
+                    {/* Live Prediction Overlay - Always visible when analyzing */}
+                    {isLiveAnalyzing && livePrediction && (
                       <div className="liveOverlay">
                         <div className="livePredictionBox">
-                          <div className="livePredictionLabel">Live Detection</div>
-                          <div className="livePredictionResult">{livePrediction.label}</div>
+                          <div className="livePredictionLabel">🎯 Live Detection</div>
+                          <div className="livePredictionResult">{livePrediction.label.toUpperCase()}</div>
                           <div className="liveConfidence">
                             {Math.round((Math.max(...Object.values(livePrediction.probabilities)) || 0) * 100)}% Confidence
                           </div>
@@ -322,12 +366,14 @@ export default function Home() {
                     )}
                     
                     {/* Click to Capture Instruction */}
-                    <div className="captureInstruction">
-                      <div className="instructionBox">
-                        <Camera size={24} />
-                        <span>Click to Capture & Classify</span>
+                    {!livePrediction && isLiveAnalyzing && (
+                      <div className="captureInstruction">
+                        <div className="instructionBox">
+                          <Camera size={24} />
+                          <span>Point at waste to classify</span>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                   <div className="buttonGroup">
                     <button 
