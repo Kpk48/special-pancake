@@ -1,6 +1,12 @@
-# The current baseline runs on Python's standard library only.
-# Optional future upgrade:
-# pillow
-# numpy
-# scikit-learn
-# tensorflow
+# Core Machine Learning Dependencies
+torch==2.12.1
+torchvision==0.27.1
+matplotlib==3.11.0
+numpy==2.5.0
+pillow==12.2.0
+scikit-learn==1.9.0
+imagehash==4.3.2
+tqdm==4.68.3
+pandas==3.0.4
+scipy==1.18.0
+joblib==1.5.3

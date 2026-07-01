@@ -10,3 +10,7 @@ out/
 tsconfig.tsbuildinfo
 npm-debug.log*
 .vercel
+data/
+artifacts/
+test.ppm
+*.pt

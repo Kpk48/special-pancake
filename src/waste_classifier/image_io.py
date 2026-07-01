@@ -59,7 +59,7 @@ def load_ppm(path: str | Path) -> Image:
             raise ValueError("PPM file ended before all pixels were read")
         pixels = [(values[i], values[i + 1], values[i + 2]) for i in range(0, len(values), 3)]
     else:
-        while index < len(data) and data[index:index + 1].isspace():
+        if index < len(data) and data[index:index + 1].isspace():
             index += 1
         raw = data[index:index + pixel_count * 3]
         if len(raw) != pixel_count * 3:

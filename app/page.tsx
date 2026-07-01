@@ -5,7 +5,9 @@ import {
   FileImage,
   Loader2,
   UploadCloud,
-  Camera
+  Camera,
+  Database,
+  ExternalLink
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -44,105 +46,133 @@ export default function Home() {
   const liveAnalysisRef = useRef<boolean>(false);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Cleanup on unmount — prevents "track destroyed without being stopped" warning
+  // Manage camera lifecycle
   useEffect(() => {
+    let active = true;
+    let localStream: MediaStream | null = null;
+    let localInterval: NodeJS.Timeout | null = null;
+
+    async function initCamera() {
+      try {
+        setError("");
+        setPrediction(null);
+        setLivePrediction(null);
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: "environment",
+            width: { ideal: 1280 },
+            height: { ideal: 960 },
+          },
+        });
+
+        if (!active) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        localStream = stream;
+        streamRef.current = stream;
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+
+          await new Promise<void>((resolve) => {
+            const video = videoRef.current!;
+            if (video.readyState >= 2) {
+              resolve();
+            } else {
+              video.addEventListener("canplay", () => resolve(), { once: true });
+            }
+          });
+
+          if (!active) return;
+          await videoRef.current.play();
+          
+          setIsLiveAnalyzing(true);
+          liveAnalysisRef.current = true;
+
+          // Start live classification loop
+          localInterval = setInterval(async () => {
+            if (!liveAnalysisRef.current || !videoRef.current || !liveCanvasRef.current) return;
+
+            try {
+              if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) return;
+
+              const context = liveCanvasRef.current.getContext("2d");
+              if (!context) return;
+
+              liveCanvasRef.current.width = videoRef.current.videoWidth;
+              liveCanvasRef.current.height = videoRef.current.videoHeight;
+              context.drawImage(videoRef.current, 0, 0);
+
+              liveCanvasRef.current.toBlob(
+                async (blob) => {
+                  if (!blob) return;
+                  const formData = new FormData();
+                  formData.append("image", blob, "frame.jpg");
+                  try {
+                    const response = await fetch("/api/predict", {
+                      method: "POST",
+                      body: formData,
+                    });
+                    if (response.ok && active) {
+                      const data = await response.json();
+                      setLivePrediction(data as Prediction);
+                    }
+                  } catch {
+                    // silently continue on network errors
+                  }
+                },
+                "image/jpeg",
+                0.8
+              );
+            } catch {
+              // silently continue
+            }
+          }, 500);
+          frameIntervalRef.current = localInterval;
+        }
+      } catch (err) {
+        if (!active) return;
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        setError(`Camera access failed: ${errorMsg}`);
+        setIsCameraActive(false);
+      }
+    }
+
+    if (isCameraActive) {
+      initCamera();
+    }
+
     return () => {
-      if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
+      active = false;
+      if (localInterval) {
+        clearInterval(localInterval);
+      }
       liveAnalysisRef.current = false;
+      setIsLiveAnalyzing(false);
+      if (localStream) {
+        localStream.getTracks().forEach((track) => track.stop());
+      }
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
       }
-      if (videoRef.current) videoRef.current.srcObject = null;
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+      setLivePrediction(null);
     };
-  }, []);
+  }, [isCameraActive]);
 
   const sortedProbabilities = useMemo(() => {
     if (!prediction) return [];
     return Object.entries(prediction.probabilities).sort((a, b) => b[1] - a[1]);
   }, [prediction]);
 
-  async function startCamera() {
-    try {
-      setError("");
-      setPrediction(null);
-      setLivePrediction(null);
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "environment",
-          width: { ideal: 1280 },
-          height: { ideal: 960 },
-        },
-      });
-
-      if (videoRef.current) {
-        streamRef.current = stream;
-        videoRef.current.srcObject = stream;
-        setIsCameraActive(true);
-
-        await new Promise<void>((resolve) => {
-          const video = videoRef.current!;
-          if (video.readyState >= 2) {
-            resolve();
-          } else {
-            video.addEventListener("canplay", () => resolve(), { once: true });
-          }
-        });
-
-        await videoRef.current.play();
-        setIsLiveAnalyzing(true);
-        liveAnalysisRef.current = true;
-        startLiveClassification();
-      }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      setError(`Camera access failed: ${errorMsg}`);
-      setIsCameraActive(false);
-    }
-  }
-
-  function startLiveClassification() {
-    if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
-
-    frameIntervalRef.current = setInterval(async () => {
-      if (!liveAnalysisRef.current || !videoRef.current || !liveCanvasRef.current) return;
-
-      try {
-        if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) return;
-
-        const context = liveCanvasRef.current.getContext("2d");
-        if (!context) return;
-
-        liveCanvasRef.current.width = videoRef.current.videoWidth;
-        liveCanvasRef.current.height = videoRef.current.videoHeight;
-        context.drawImage(videoRef.current, 0, 0);
-
-        liveCanvasRef.current.toBlob(
-          async (blob) => {
-            if (!blob) return;
-            const formData = new FormData();
-            formData.append("image", blob, "frame.jpg");
-            try {
-              const response = await fetch("/api/predict", {
-                method: "POST",
-                body: formData,
-              });
-              if (response.ok) {
-                const data = await response.json();
-                setLivePrediction(data as Prediction);
-              }
-            } catch {
-              // silently continue on network errors
-            }
-          },
-          "image/jpeg",
-          0.8
-        );
-      } catch {
-        // silently continue
-      }
-    }, 500);
+  function startCamera() {
+    setIsCameraActive(true);
   }
 
   async function capturePhoto() {
@@ -208,19 +238,7 @@ export default function Home() {
   }
 
   function stopCamera() {
-    if (frameIntervalRef.current) {
-      clearInterval(frameIntervalRef.current);
-      frameIntervalRef.current = null;
-    }
-    liveAnalysisRef.current = false;
-    setIsLiveAnalyzing(false);
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) videoRef.current.srcObject = null;
     setIsCameraActive(false);
-    setLivePrediction(null);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -258,30 +276,45 @@ export default function Home() {
 
   return (
     <>
+      <div className="bg-blobs">
+        <div className="blob blob-1" />
+        <div className="blob blob-2" />
+        <div className="blob blob-3" />
+      </div>
+
       <header className="header">
         <div className="shell headerContent">
-          <h1 className="headerTitle">Waste Classification System</h1>
-          <p className="headerSubtitle">AI-powered waste material recognition</p>
+          <div className="headerTitleGroup">
+            <h1 className="headerTitle">Waste Classification System</h1>
+            <p className="headerSubtitle">AI-powered waste material recognition</p>
+          </div>
+          <div className="headerStatsBadge">
+            <span><span className="greenPulse" /> Live Model</span>
+            <span>Dataset: 550 Images</span>
+            <span>Classes: 11</span>
+          </div>
         </div>
       </header>
 
       <main className="shell">
         <section className="hero">
-          <div className="heroCopy">
-            <h2>Intelligent Waste Sorting</h2>
-            <p>
-              Upload an image to instantly identify waste materials. Our machine learning model
-              recognizes 11 different waste categories including cardboard, glass, metal, plastic,
-              paper, organic waste, textiles, ceramic, battery, wood, and nylon.
-            </p>
-            <div className="featureList">
-              <div className="feature">
-                <FileImage size={20} />
-                <span>Upload or Capture Images</span>
-              </div>
-              <div className="feature">
-                <BrainCircuit size={20} />
-                <span>Machine Learning Based</span>
+          <div className="heroCard">
+            <div className="heroCopy">
+              <h2>Intelligent Waste Sorting</h2>
+              <p>
+                Identify waste materials instantly using our lightweight machine learning classifier.
+                Trained on an expanded dataset of 550 samples, it supports 11 distinct categories:
+                cardboard, glass, metal, organic waste, paper, plastic, textile, battery, wood, ceramic, and nylon.
+              </p>
+              <div className="featureList">
+                <div className="feature">
+                  <FileImage size={20} />
+                  <span>Upload or Capture Images</span>
+                </div>
+                <div className="feature">
+                  <BrainCircuit size={20} />
+                  <span>Machine Learning Based</span>
+                </div>
               </div>
             </div>
           </div>
@@ -290,7 +323,7 @@ export default function Home() {
         <section className="workspace" id="classifier">
           <div className="glassCard classifierCard">
             <div className="cardHeader">
-              <h3>Upload Image</h3>
+              <h3>Analyze Waste</h3>
               <span className="formatHint">JPG, PNG, PPM, RAW</span>
             </div>
 
@@ -463,6 +496,129 @@ export default function Home() {
               </ol>
             </div>
           </aside>
+        </section>
+
+        <section className="datasetsSection">
+          <div className="glassCard datasetsCard">
+            <h3>Recommended Research Datasets</h3>
+            <p className="sectionDescription">
+              For final accuracy evaluations and scaling the prototype, we recommend integrating these real-world photography and object detection datasets.
+            </p>
+            <div className="datasetsGrid">
+              
+              <div className="datasetGroup">
+                <div className="groupTitle">
+                  <Database size={16} />
+                  <span>🥇 Best Match for Categories</span>
+                </div>
+                
+                <div className="datasetItem">
+                  <div className="datasetHeader">
+                    <span className="datasetName">Garbage Classification V2</span>
+                    <span className="datasetStats">20k+ Images</span>
+                  </div>
+                  <p className="datasetText">
+                    Heavy class overlap. Standardized versions (Original, 256px, 384px) with an 80/10/10 split. Benchmarked against EfficientNetV2, MobileNet, and ResNet.
+                  </p>
+                  <div className="datasetLinks">
+                    <a href="https://www.kaggle.com/datasets/sumn2u/garbage-classification-v2" target="_blank" rel="noopener noreferrer" className="datasetLink">
+                      Kaggle <ExternalLink size={10} />
+                    </a>
+                  </div>
+                </div>
+
+                <div className="datasetItem">
+                  <div className="datasetHeader">
+                    <span className="datasetName">Garbage Classification (12 Classes)</span>
+                    <span className="datasetStats">15.1k+ Images</span>
+                  </div>
+                  <p className="datasetText">
+                    Covers paper, cardboard, biological, metal, plastic, clothes, shoes, batteries, and glass subtypes (green, brown, white) which the baseline model doesn't distinguish.
+                  </p>
+                  <div className="datasetLinks">
+                    <a href="https://www.kaggle.com/datasets/mostafaabla/garbage-classification" target="_blank" rel="noopener noreferrer" className="datasetLink">
+                      Kaggle <ExternalLink size={10} />
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              <div className="datasetGroup">
+                <div className="groupTitle">
+                  <Database size={16} />
+                  <span>🥈 Large General Purpose</span>
+                </div>
+
+                <div className="datasetItem">
+                  <div className="datasetHeader">
+                    <span className="datasetName">OpenLitterMap</span>
+                    <span className="datasetStats">100k+ Images</span>
+                  </div>
+                  <p className="datasetText">
+                    Largest public user-contributed global litter dataset. Features 11 main categories and 187 subcategories. Great for real-world environmental noise.
+                  </p>
+                  <div className="datasetLinks">
+                    <a href="https://openlittermap.com" target="_blank" rel="noopener noreferrer" className="datasetLink">
+                      Website <ExternalLink size={10} />
+                    </a>
+                  </div>
+                </div>
+
+                <div className="datasetItem">
+                  <div className="datasetHeader">
+                    <span className="datasetName">Waste Classification Data</span>
+                    <span className="datasetStats">25k+ Images</span>
+                  </div>
+                  <p className="datasetText">
+                    Simple binary split between Organic and Recyclable categories. Divided into training (22.5k) and test (2.5k) sets. Ideal for data augmentation.
+                  </p>
+                  <div className="datasetLinks">
+                    <a href="https://www.kaggle.com/datasets/techsash/waste-classification-data" target="_blank" rel="noopener noreferrer" className="datasetLink">
+                      Kaggle <ExternalLink size={10} />
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              <div className="datasetGroup">
+                <div className="groupTitle">
+                  <Database size={16} />
+                  <span>🥉 Detection & Segmentation</span>
+                </div>
+
+                <div className="datasetItem">
+                  <div className="datasetHeader">
+                    <span className="datasetName">TACO (Trash in Context)</span>
+                    <span className="datasetStats">COCO Format</span>
+                  </div>
+                  <p className="datasetText">
+                    60 classes with pixel-level instance segmentation annotations in real-world environments. Ideal when you upgrade to real-time object detection models.
+                  </p>
+                  <div className="datasetLinks">
+                    <a href="https://tacodataset.org" target="_blank" rel="noopener noreferrer" className="datasetLink">
+                      Website <ExternalLink size={10} />
+                    </a>
+                  </div>
+                </div>
+
+                <div className="datasetItem">
+                  <div className="datasetHeader">
+                    <span className="datasetName">YOLO Waste Detection (Roboflow)</span>
+                    <span className="datasetStats">YOLO Format</span>
+                  </div>
+                  <p className="datasetText">
+                    44 fine-grained classes (ceramic, textile, aluminum, plastics, etc.) with pre-formatted bounding box coordinates. Ready for YOLOv8/v10 training.
+                  </p>
+                  <div className="datasetLinks">
+                    <a href="https://www.kaggle.com/datasets/spellsharp/garbage-data" target="_blank" rel="noopener noreferrer" className="datasetLink">
+                      Kaggle <ExternalLink size={10} />
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
         </section>
       </main>
 

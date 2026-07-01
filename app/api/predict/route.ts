@@ -94,7 +94,7 @@ function parsePpm(data: Buffer): PpmImage {
       pixels.push([values[i], values[i + 1], values[i + 2]]);
     }
   } else {
-    while (index < data.length && data[index] <= 32) {
+    if (index < data.length && data[index] <= 32) {
       index += 1;
     }
     const raw = data.subarray(index, index + pixelCount * 3);
