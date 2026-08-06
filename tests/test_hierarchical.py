@@ -43,11 +43,11 @@ class TestHierarchicalConditioning(unittest.TestCase):
         
         cond0 = torch.tensor([0, 0])
         logits_cond0 = model(x, cond0)
-        self.assertEqual(logits_cond0.shape, (2, 11))
+        self.assertEqual(logits_cond0.shape, (2, 8))
 
         cond5 = torch.tensor([5, 5])
         logits_cond5 = model(x, cond5)
-        self.assertEqual(logits_cond5.shape, (2, 11))
+        self.assertEqual(logits_cond5.shape, (2, 8))
 
         self.assertFalse(torch.allclose(logits_cond0, logits_cond5, atol=1e-5))
 
@@ -57,11 +57,11 @@ class TestHierarchicalConditioning(unittest.TestCase):
         
         cond0 = torch.tensor([0, 0])
         logits_cond0 = model(x, cond0)
-        self.assertEqual(logits_cond0.shape, (2, 11))
+        self.assertEqual(logits_cond0.shape, (2, 8))
 
         cond5 = torch.tensor([5, 5])
         logits_cond5 = model(x, cond5)
-        self.assertEqual(logits_cond5.shape, (2, 11))
+        self.assertEqual(logits_cond5.shape, (2, 8))
 
         self.assertFalse(torch.allclose(logits_cond0, logits_cond5, atol=1e-5))
 

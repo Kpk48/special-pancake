@@ -32,12 +32,18 @@ class HierarchicalDataset(Dataset):
     def __init__(self, base_dataset: Dataset, classes: list[str]) -> None:
         self.base_dataset = base_dataset
         self.classes = classes
+        self.cached_samples = []
+        for i in range(len(self.base_dataset)):
+            img, target3 = self.base_dataset[i]
+            if not isinstance(img, torch.Tensor):
+                img = transforms.ToTensor()(img)
+            self.cached_samples.append((img, target3))
 
     def __len__(self) -> int:
         return len(self.base_dataset)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, int, int, int]:
-        img, target3 = self.base_dataset[idx]
+        img, target3 = self.cached_samples[idx]
         class_name = self.classes[target3]
         target1 = get_stage1_label(class_name)
         target2 = get_stage2_label(class_name)
@@ -166,8 +172,8 @@ def main() -> None:
     parser.add_argument("--loss-type", default="cross_entropy", choices=["cross_entropy", "focal_loss"])
     parser.add_argument("--gamma", type=float, default=2.0, help="Focal loss gamma parameter.")
     parser.add_argument("--use-proto", action="store_true", help="Use prototypical metric learning head for Stage 3.")
-    parser.add_argument("--augment-factor", type=float, default=2.0, help="Targeted augmentation multiplier.")
-    parser.add_argument("--max-copies", type=int, default=8, help="Max copies per minority sample.")
+    parser.add_argument("--augment-factor", type=float, default=0.0, help="Targeted augmentation multiplier.")
+    parser.add_argument("--max-copies", type=int, default=0, help="Max copies per minority sample.")
     parser.add_argument("--model-dir", default="artifacts/hierarchical", help="Directory to save model checkpoints.")
     parser.add_argument("--max-samples-per-class", type=int, default=100, help="Maximum training samples per class.")
     parser.add_argument("--device", default="auto", help="Device to use: mps, cuda, cpu, auto")
@@ -265,7 +271,7 @@ def main() -> None:
     # Initialize models
     stage1 = Stage1Model().to(device)
     stage2 = Stage2Model().to(device)
-    stage3 = Stage3Model(use_prototypical=args.use_proto).to(device)
+    stage3 = Stage3Model(use_prototypical=args.use_proto, num_classes=len(classes)).to(device)
 
     # Calculate class weights for Stage 2 and Stage 3 based on frequencies in raw train set
     logger.info("Computing inverse-frequency class weights for loss functions...")
@@ -282,7 +288,7 @@ def main() -> None:
 
     s1_weights = calc_weights(stage1_targets, 2).to(device)
     s2_weights = calc_weights(stage2_targets, 6).to(device)
-    s3_weights = calc_weights(stage3_targets, 11).to(device)
+    s3_weights = calc_weights(stage3_targets, len(classes)).to(device)
 
     # Train Stage 1
     logger.info("=== Training Stage 1 Model (Biodegradable/Non-biodegradable) ===")
@@ -311,7 +317,7 @@ def main() -> None:
     logger.info("Stage 2 training complete. Model saved.")
 
     # Train Stage 3
-    logger.info("=== Training Stage 3 Model (11 Fine-grained Classes) ===")
+    logger.info(f"=== Training Stage 3 Model ({len(classes)} Fine-grained Classes) ===")
     criterion3 = get_loss_fn(args.loss_type, alpha=s3_weights, gamma=args.gamma)
     optimizer3 = optim.Adam(stage3.parameters(), lr=args.lr)
 

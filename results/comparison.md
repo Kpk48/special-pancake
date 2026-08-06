@@ -4,9 +4,9 @@ This report evaluates the performance of the **Hierarchical CNN** versus the **K
 
 | Model | Stage | Classes | Precision (macro) | Recall (macro) | F1-Score | Accuracy | AUC | Params | Size (MB) | Inference Time (s/img) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| KNN Baseline | Stage 1 | 2 | 0.3720 | 0.5000 | 0.4266 | 0.7440 | 0.5000 | 5016 | 0.1348 | 0.00010 |
-| Hierarchical CNN | Stage 1 | 2 | 0.3720 | 0.5000 | 0.4266 | 0.7440 | 0.5778 | 96002 | 0.3864 | 0.01398 |
-| KNN Baseline | Stage 2 | 6 | 0.0752 | 0.1667 | 0.1036 | 0.4512 | 0.5000 | 5016 | 0.1348 | 0.00010 |
-| Hierarchical CNN | Stage 2 | 6 | 0.0174 | 0.1667 | 0.0315 | 0.1043 | 0.6014 | 105446 | 0.4232 | 0.01398 |
-| KNN Baseline | Stage 3 | 11 | 0.0040 | 0.1250 | 0.0078 | 0.0320 | 0.5000 | 5016 | 0.1348 | 0.00010 |
-| Hierarchical CNN | Stage 3 | 11 | 0.0130 | 0.1250 | 0.0236 | 0.1043 | 0.5560 | 105835 | 0.4246 | 0.01398 |
+| KNN Baseline | Stage 1 | 2 | 0.3748 | 0.5000 | 0.4284 | 0.7496 | 0.5000 | 5016 | 0.1408 | 0.00034 |
+| Hierarchical CNN | Stage 1 | 2 | 0.7511 | 0.8168 | 0.7638 | 0.7952 | 0.9033 | 96002 | 0.3872 | 0.00956 |
+| KNN Baseline | Stage 2 | 6 | 0.0737 | 0.1667 | 0.1022 | 0.4420 | 0.5000 | 5016 | 0.1408 | 0.00034 |
+| Hierarchical CNN | Stage 2 | 6 | 0.5882 | 0.6211 | 0.5882 | 0.6698 | 0.8344 | 105446 | 0.4240 | 0.00956 |
+| KNN Baseline | Stage 3 | 8 | 0.0038 | 0.1250 | 0.0074 | 0.0304 | 0.5000 | 5016 | 0.1408 | 0.00034 |
+| Hierarchical CNN | Stage 3 | 8 | 0.5492 | 0.5937 | 0.5551 | 0.6340 | 0.8251 | 105640 | 0.4248 | 0.00956 |

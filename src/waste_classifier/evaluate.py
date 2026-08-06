@@ -229,14 +229,14 @@ def evaluate_models(
                 knn_pred3 = STAGE3_CLASSES.index(pred_label) if pred_label in STAGE3_CLASSES else 0
                 
                 # Construct stage 3 probabilities
-                prob3 = np.zeros(11)
+                prob3 = np.zeros(len(STAGE3_CLASSES))
                 for label, score in probs_dict.items():
                     if label in STAGE3_CLASSES:
                         prob3[STAGE3_CLASSES.index(label)] = score
             except Exception:
                 # Fallback on failure
                 knn_pred3 = 0
-                prob3 = np.zeros(11)
+                prob3 = np.zeros(len(STAGE3_CLASSES))
                 prob3[0] = 1.0
 
             knn_times.append(time.perf_counter() - t0)
@@ -271,7 +271,7 @@ def evaluate_models(
     results_knn = {}
 
     for stage in [1, 2, 3]:
-        n_classes = 2 if stage == 1 else (6 if stage == 2 else 11)
+        n_classes = 2 if stage == 1 else (6 if stage == 2 else len(STAGE3_CLASSES))
         
         # CNN Metrics
         p, r, f, acc, auc = compute_metrics(
@@ -317,7 +317,7 @@ def generate_reports(
     ]
 
     for stage in [1, 2, 3]:
-        n_classes = 2 if stage == 1 else (6 if stage == 2 else 11)
+        n_classes = 2 if stage == 1 else (6 if stage == 2 else len(STAGE3_CLASSES))
         
         # KNN Row
         if stage in knn_results:
@@ -341,7 +341,7 @@ def generate_reports(
     print(f"Markdown report generated at {output_md_path}")
 
     # 2. Generate Matplotlib Chart
-    stages = ["Stage 1\n(2 classes)", "Stage 2\n(6 classes)", "Stage 3\n(11 classes)"]
+    stages = ["Stage 1\n(2 classes)", "Stage 2\n(6 classes)", f"Stage 3\n({len(STAGE3_CLASSES)} classes)"]
     x = np.arange(len(stages))
     width = 0.35
 
@@ -406,8 +406,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    # Fix potential argument parsing bug for hyphens
-    import sys
-    # Replace '--knn-model' with '--knn_model' to match argparse conversion
-    sys.argv = [arg.replace("--knn-model", "--knn_model") for arg in sys.argv]
     main()

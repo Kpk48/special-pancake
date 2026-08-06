@@ -8,26 +8,23 @@ STAGE1_CLASSES = ["biodegradable", "non_biodegradable"]
 # Stage 2 classes: 6 classes
 STAGE2_CLASSES = [
     "paper_cardboard",
-    "organic_wood",
+    "organic",
     "glass",
     "metal",
-    "plastic_nylon",
-    "textile_battery_ceramic",
+    "plastic",
+    "textile_battery",
 ]
 
-# Stage 3 classes: 11 classes (our standard dataset classes)
+# Stage 3 classes: 8 classes (our standard dataset classes)
 STAGE3_CLASSES = [
     "battery",
     "cardboard",
-    "ceramic",
     "glass",
     "metal",
-    "nylon",
     "organic",
     "paper",
     "plastic",
     "textile",
-    "wood",
 ]
 
 # Stage 3 label name to Stage 1 index mapping
@@ -35,12 +32,9 @@ STAGE3_TO_STAGE1 = {
     "cardboard": 0,
     "organic": 0,
     "paper": 0,
-    "wood": 0,
     "battery": 1,
-    "ceramic": 1,
     "glass": 1,
     "metal": 1,
-    "nylon": 1,
     "plastic": 1,
     "textile": 1,
 }
@@ -50,14 +44,11 @@ STAGE3_TO_STAGE2 = {
     "paper": 0,
     "cardboard": 0,
     "organic": 1,
-    "wood": 1,
     "glass": 2,
     "metal": 3,
     "plastic": 4,
-    "nylon": 4,
     "textile": 5,
     "battery": 5,
-    "ceramic": 5,
 }
 
 

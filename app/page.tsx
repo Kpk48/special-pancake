@@ -17,17 +17,14 @@ type Prediction = {
 };
 
 const classes = [
+  "battery",
   "cardboard",
   "glass",
   "metal",
   "organic",
   "paper",
   "plastic",
-  "textile",
-  "battery",
-  "wood",
-  "ceramic",
-  "nylon"
+  "textile"
 ];
 
 export default function Home() {
@@ -290,8 +287,8 @@ export default function Home() {
           </div>
           <div className="headerStatsBadge">
             <span><span className="greenPulse" /> Live Model</span>
-            <span>Dataset: 550 Images</span>
-            <span>Classes: 11</span>
+            <span>Dataset: 17,061 Images</span>
+            <span>Classes: 8</span>
           </div>
         </div>
       </header>
@@ -302,9 +299,9 @@ export default function Home() {
             <div className="heroCopy">
               <h2>Intelligent Waste Sorting</h2>
               <p>
-                Identify waste materials instantly using our lightweight machine learning classifier.
-                Trained on an expanded dataset of 550 samples, it supports 11 distinct categories:
-                cardboard, glass, metal, organic waste, paper, plastic, textile, battery, wood, ceramic, and nylon.
+                Identify waste materials instantly using our hierarchical convolutional neural network.
+                Trained on a dataset of 17,061 samples, it supports 8 distinct categories:
+                battery, cardboard, glass, metal, organic, paper, plastic, and textile.
               </p>
               <div className="featureList">
                 <div className="feature">

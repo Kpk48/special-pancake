@@ -43,9 +43,6 @@ TARGET_CLASSES = [
     "plastic",
     "textile",
     "battery",
-    "wood",
-    "ceramic",
-    "nylon",
 ]
 
 # Source Category Mappings

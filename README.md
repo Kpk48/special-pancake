@@ -1,162 +1,91 @@
-# AI-Based Waste Classification System
+# AI-Based Hierarchical Waste Classification System
 
-This project classifies waste images into material categories for smart-bin and recycling workflows. It is designed for a final-year review: the repo includes a working training pipeline, a demo image dataset, a saved model, a CLI predictor, a lightweight local web app, tests, and notes on the larger datasets to use for the full report.
+This repository implements a multi-stage **Hierarchical CNN** for classifying waste images into structured material categories. It is designed as a final-year engineering project extending the architecture in Nahiduzzaman et al., "An automated waste classification system using deep learning techniques" (*Knowledge-Based Systems*, 2025).
 
-The current implementation uses a dependency-free baseline classifier so it runs on a plain Python installation. It extracts simple RGB histogram and texture features from images, then trains a k-nearest-neighbors classifier. For final deployment, you can replace the baseline with a CNN or transfer-learning model while keeping the same dataset folder structure.
+The system classifies waste across three hierarchical levels:
+1. **Stage 1 (Binary)**: Biodegradable vs. Non-biodegradable.
+2. **Stage 2 (6 Coarse Categories)**: `paper_cardboard`, `organic`, `glass`, `metal`, `plastic`, `textile_battery`.
+3. **Stage 3 (8 Fine-grained Classes)**: `battery`, `cardboard`, `glass`, `metal`, `organic`, `paper`, `plastic`, `textile`.
 
-## What Is Built
+---
 
-- Multi-class waste classifier
-- Demo dataset generator
-- Training and evaluation pipeline
-- Saved JSON model artifact
-- CLI prediction command
-- Production-style React + TypeScript frontend using Next.js
-- Next.js API route that calls the trained Python model
-- Unit tests for feature extraction and model prediction
+## 🚀 Key Achievements
 
-## Dataset Used In This Repo
+- **Production-Ready Deep Learning**: Shifted from a simple KNN baseline to a multi-stage **Hierarchical CNN** built in PyTorch.
+- **Genuine Datasets**: Merged, cleaned, and split **17,061 real photographs** from *Garbage Classification V2*, *Garbage Classification (12 classes)*, and *TACO bounding box crops*.
+- **RAM Caching & GPU Acceleration**: Implemented in-memory tensor caching to bypass Windows disk reading overhead, allowing full CUDA GPU training on an NVIDIA RTX 3050 Laptop GPU.
+- **Modern Next.js Frontend**: A full-stack web UI built with Next.js, React, and TypeScript that interfaces with the trained PyTorch models for inference.
 
-I generated and used a local demo dataset at:
+---
 
-```text
-data/demo_waste/
-```
+## 📊 Dataset Statistics
 
-Classes:
+The preprocessing pipeline cleaned duplicates using Perceptual Hashing (pHash), removed corrupt/low-dimension samples, and partitioned the data:
 
-- `cardboard`
-- `glass`
-- `metal`
-- `organic`
-- `paper`
-- `plastic`
+- **Training set**: 11,938 images
+- **Validation set**: 2,555 images
+- **Testing set**: 2,568 images
+- **Total Dataset Size**: 17,061 images
 
-The demo images are synthetic `.ppm` images with class-specific colors and textures. They are intentionally small so the project can be trained and verified without downloads. This is good for review demonstrations and code validation, but the final report should clearly state that production accuracy must be measured on real waste photographs.
+### Class Distribution
 
-## Recommended Real Datasets
+| Class Name | Train Split | Val Split | Test Split | Total Images |
+| --- | --- | --- | --- | --- |
+| `cardboard` | 1,078 | 231 | 232 | 1,541 |
+| `glass` | 1,551 | 332 | 334 | 2,217 |
+| `metal` | 704 | 150 | 152 | 1,006 |
+| `organic` | 724 | 155 | 156 | 1,035 |
+| `paper` | 1,185 | 254 | 255 | 1,694 |
+| `plastic` | 1,413 | 302 | 304 | 2,019 |
+| `textile` | 4,925 | 1,055 | 1,057 | 7,037 |
+| `battery` | 358 | 76 | 78 | 512 |
 
-Use these datasets for the actual experiment section:
+---
 
-1. **TrashNet**
-   - Best for: compact academic baseline.
-   - Classes commonly include cardboard, glass, metal, paper, plastic, and trash.
-   - Source: [TrashNet GitHub](https://github.com/garythung/trashnet)
+## 📈 Performance Summary
 
-2. **Garbage Classification (12 classes)**
-   - Best for: stronger multi-class household waste classification.
-   - Includes 15,150 images across 12 classes such as paper, cardboard, biological, metal, plastic, glass variants, clothes, shoes, batteries, and trash.
-   - Source: [Kaggle Garbage Classification](https://www.kaggle.com/datasets/mostafaabla/garbage-classification)
+Tested on the held-out test split of **2,568 real images**, comparing the **Hierarchical CNN** against the **KNN Baseline**:
 
-3. **Garbage Dataset / Garbage Classification V2**
-   - Best for: larger final-year evaluation with more class coverage.
-   - Kaggle lists 10 classes and 13,348 images in the current dataset card.
-   - Source: [Kaggle Garbage Dataset](https://www.kaggle.com/datasets/sumn2u/garbage-classification-v2)
+| Model | Stage | Classes | Precision (macro) | Recall (macro) | F1-Score | Accuracy | AUC | Inference Time (s/img) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **KNN Baseline** | Stage 1 | 2 | 0.3748 | 0.5000 | 0.4284 | 74.96% | 0.5000 | **0.00034s** |
+| **Hierarchical CNN** | Stage 1 | 2 | **0.7511** | **0.8168** | **0.7638** | **79.52%** | **0.9033** | 0.00956s |
+| **KNN Baseline** | Stage 2 | 6 | 0.0737 | 0.1667 | 0.1022 | 44.20% | 0.5000 | **0.00034s** |
+| **Hierarchical CNN** | Stage 2 | 6 | **0.5882** | **0.6211** | **0.5882** | **66.98%** | **0.8344** | 0.00956s |
+| **KNN Baseline** | Stage 3 | 8 | 0.0038 | 0.1250 | 0.0074 | 3.04% | 0.5000 | **0.00034s** |
+| **Hierarchical CNN** | Stage 3 | 8 | **0.5492** | **0.5937** | **0.5551** | **63.40%** | **0.8251** | 0.00956s |
 
-4. **TACO**
-   - Best for: object detection or segmentation instead of only image classification.
-   - Use this if your project evolves into locating waste objects inside a scene.
-   - Source: [TACO paper](https://arxiv.org/abs/2003.06975)
+---
 
-5. **YOLO Garbage Detection - 6 Waste Categories**
-   - Best for: real-time detection with bounding boxes.
-   - Kaggle lists train/valid/test folders with YOLO labels for biodegradable, cardboard, glass, metal, paper, and plastic.
-   - Source: [Kaggle Garbage Detection](https://www.kaggle.com/datasets/viswaprakash1990/garbage-detection/data)
+## ⚙️ Running the Project
 
-## Expected Dataset Format
-
-Put real images in one folder per class:
-
-```text
-data/real_waste/
-  cardboard/
-    img001.ppm
-  glass/
-    img002.ppm
-  metal/
-  organic/
-  paper/
-  plastic/
-```
-
-The dependency-free baseline currently reads binary or ASCII PPM images (`.ppm`). For real JPEG/PNG datasets, either:
-
-- convert images to PPM before training, or
-- upgrade `src/waste_classifier/image_io.py` to use Pillow/OpenCV.
-
-## Run The Project
-
-Generate the demo dataset:
-
+### 1. Run Preprocessing Pipeline
+To download the datasets, crop TACO bounding boxes, deduplicate using Pigeonhole LSH clustering, and write final splits:
 ```bash
-python3 scripts/generate_demo_dataset.py
+python scripts/preprocess_pipeline.py
 ```
 
-Train the model:
-
+### 2. Train the Hierarchical CNN
+To train all three stages sequentially for 15 epochs on CUDA:
 ```bash
-PYTHONPATH=src python3 -m waste_classifier.train --data data/demo_waste --model artifacts/waste_model.json
+set PYTHONPATH=src&& python -m waste_classifier.hierarchical.train_hierarchical --data data/final --epochs 15 --batch-size 64 --lr 0.001 --loss-type focal_loss --max-samples-per-class 0 --model-dir artifacts/hierarchical
 ```
 
-Predict one image:
-
+### 3. Run Evaluation
+To evaluate both models on the test split, producing report card metrics and confusion statistics:
 ```bash
-PYTHONPATH=src python3 -m waste_classifier.predict data/demo_waste/plastic/plastic_001.ppm --model artifacts/waste_model.json
+set PYTHONPATH=src&& python -m waste_classifier.evaluate --data data/final --knn-model artifacts/waste_model.json --cnn-model-dir artifacts/hierarchical --out-md results/comparison.md --out-png results/comparison.png
 ```
 
-Start the production frontend:
-
+### 4. Start Next.js App
+Start the Next.js development server to browse the interactive UI:
 ```bash
-npm install
 npm run dev
 ```
+Open [http://localhost:3000](http://localhost:3000) to upload images and run real-time hierarchical inference!
 
-Then open:
-
-```text
-http://localhost:3000
-```
-
-The frontend includes upload-based prediction, model readiness cards, and direct links to all recommended datasets.
-
-Optional legacy Python-only web app:
-
+### 5. Run Unit Tests
+To confirm network shapes and logic:
 ```bash
-PYTHONPATH=src python3 -m waste_classifier.app --model artifacts/waste_model.json --port 8000
+set PYTHONPATH=src&& python -m unittest discover -s tests
 ```
-
-Then open:
-
-```text
-http://localhost:8000
-```
-
-Run tests:
-
-```bash
-PYTHONPATH=src python3 -m unittest discover -s tests
-```
-
-## Deploy To Vercel
-
-This project is ready for Vercel. The production frontend is a Next.js app and the `/api/predict` route runs entirely in Node.js, so it does not depend on spawning Python in serverless production.
-
-```bash
-npm run build
-vercel deploy --prod --yes
-```
-
-If the Vercel CLI asks you to log in:
-
-```bash
-vercel login
-```
-
-## Suggested Review-1 PPT Content
-
-- Problem statement: manual waste segregation is slow, inconsistent, and unsafe.
-- Objective: classify waste into recyclable/material categories using image-based AI.
-- Dataset: start with the generated demo dataset for prototype validation; use TrashNet or Garbage Classification V2 for final model training.
-- Methodology: image acquisition, preprocessing, feature extraction/CNN, model training, evaluation, and prediction UI.
-- Metrics: accuracy, precision, recall, F1-score, confusion matrix.
-- Future enhancement: replace baseline with MobileNetV2/EfficientNet transfer learning and support real-time camera input.

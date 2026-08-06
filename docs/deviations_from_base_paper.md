@@ -10,19 +10,19 @@ This document describes the architectural and design deviations in our hierarchi
   - Stage 1: 2 classes (biodegradable vs. non-biodegradable)
   - Stage 2: 9 classes
   - Stage 3: 36 classes
-- **Our Implementation**: Adjusted to align with the 11 classes present in this final-year dataset:
+- **Our Implementation**: Adjusted to align with the 8 classes present in this final-year dataset:
   - **Stage 1 (2 classes)**:
-    - `0`: Biodegradable (`organic`, `paper`, `cardboard`, `wood`)
-    - `1`: Non-biodegradable (`glass`, `metal`, `plastic`, `textile`, `battery`, `ceramic`, `nylon`)
+    - `0`: Biodegradable (`organic`, `paper`, `cardboard`)
+    - `1`: Non-biodegradable (`glass`, `metal`, `plastic`, `textile`, `battery`)
   - **Stage 2 (6 classes)**: Coarse groups:
     - `0`: Paper/Cardboard
-    - `1`: Organic/Wood
+    - `1`: Organic
     - `2`: Glass
     - `3`: Metal
-    - `4`: Plastic/Nylon
-    - `5`: Textile/Battery/Ceramic
-  - **Stage 3 (11 classes)**: Fine-grained categories:
-    - `battery`, `cardboard`, `ceramic`, `glass`, `metal`, `nylon`, `organic`, `paper`, `plastic`, `textile`, `wood`.
+    - `4`: Plastic
+    - `5`: Textile/Battery
+  - **Stage 3 (8 classes)**: Fine-grained categories:
+    - `battery`, `cardboard`, `glass`, `metal`, `organic`, `paper`, `plastic`, `textile`.
 
 ---
 

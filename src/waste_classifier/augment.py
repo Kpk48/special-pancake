@@ -86,13 +86,17 @@ class TargetedAugmentedDataset(Dataset):
             transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
         ])
         self.cutout = Cutout(size=16, p=0.5)
+        self.cached_images = []
+        for i in range(len(self.base_dataset)):
+            img, target = self.base_dataset[i]
+            self.cached_images.append((transforms.ToTensor()(img), target))
 
     def __len__(self) -> int:
         return len(self.indices_map)
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
         orig_idx, should_augment = self.indices_map[index]
-        img, target = self.base_dataset[orig_idx]
+        img, target = self.cached_images[orig_idx]
 
         # Apply augmentation if flagged
         if should_augment:

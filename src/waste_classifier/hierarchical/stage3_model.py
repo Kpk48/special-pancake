@@ -45,6 +45,7 @@ class Stage3Model(nn.Module):
         embedding_dim: int = 16,
         use_prototypical: bool = False,
         proto_dim: int = 64,
+        num_classes: int = 8,
     ) -> None:
         super().__init__()
         self.backbone = DSConv2DBackbone(feature_dim=feature_dim)
@@ -61,14 +62,14 @@ class Stage3Model(nn.Module):
         if use_prototypical:
             self.classifier = PrototypicalHead(
                 in_features=in_classifier_features,
-                num_classes=11,
+                num_classes=num_classes,
                 embedding_dim=proto_dim,
             )
         else:
             self.classifier = nn.Sequential(
                 nn.Linear(in_classifier_features, 64),
                 nn.ReLU(inplace=True),
-                nn.Linear(64, 11),
+                nn.Linear(64, num_classes),
             )
 
     def forward(self, x: torch.Tensor, stage2_class: torch.Tensor) -> torch.Tensor:

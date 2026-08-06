@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Waste Classification System | AI-Powered Waste Recognition",
-  description: "Intelligent waste material classification using machine learning. Identify 11 waste categories including cardboard, glass, metal, plastic, and more."
+  description: "Intelligent waste material classification using a hierarchical CNN. Identify 8 waste categories including cardboard, glass, metal, plastic, organic, paper, textile, and battery."
 };
 
 export default function RootLayout({

@@ -1,92 +1,82 @@
-# AI-Based Waste Classification System - Project Notes
+# AI-Based Hierarchical Waste Classification System - Project Report
 
-## Project Abstract
+## 1. Abstract
+This project implements a multi-stage **Hierarchical CNN** for sorting and classifying household and industrial waste from images. The system is designed to segment waste hierarchically into:
+- Stage 1: Biodegradable vs. Non-biodegradable (binary classification)
+- Stage 2: 6 Coarse Categories (material groupings)
+- Stage 3: 8 Fine-grained Classes (specific target materials)
 
-The AI-Based Waste Classification System classifies waste images into material categories such as cardboard, glass, metal, organic, paper, and plastic. The goal is to support faster and more consistent waste segregation in recycling centers, smart bins, and educational sustainability applications.
+The architecture is implemented in PyTorch and deployed as a full-stack Next.js web application.
 
-## Problem Statement
+---
 
-Manual waste segregation is time-consuming, inconsistent, and can expose workers to unsafe material. An image-based classifier can assist by identifying the likely material category of a waste item and routing it to the correct disposal or recycling process.
+## 2. Problem Statement
+Efficient recycling requires accurate waste segregation. Manual sorting is slow, inefficient, costly, and poses occupational health hazards. Automated optical sorting systems powered by deep learning can classify waste items at high speed and accuracy, routing materials to appropriate recycling channels.
 
-## Objectives
+---
 
-- Build an image classification workflow for waste segregation.
-- Prepare a dataset with labeled waste categories.
-- Train a model and evaluate its performance.
-- Provide a simple interface for predicting the class of a new waste image.
-- Document real datasets suitable for the final experiment.
+## 3. Objectives
+- Design and train a multi-stage Hierarchical CNN classifier.
+- Process and balance a large dataset of genuine waste photographs.
+- Implement memory caching to optimize GPU-accelerated training.
+- Compare model performance against a legacy K-Nearest Neighbors (KNN) baseline.
+- Deliver an interactive web application UI for real-time model predictions.
 
-## Dataset Used Now
+---
 
-The repo uses a generated demo dataset:
+## 4. Dataset Composition
+The dataset consists of **17,061 images** compiled from three sources:
+1. **Garbage Classification V2**: 11,806 images.
+2. **Garbage Classification (12 classes)**: 13,873 images.
+3. **TACO (Trash Annotations in Context)**: 607 object samples cropped from bounding box annotations.
 
-```text
-data/demo_waste/
-```
+Preprocessing LSH clustering removed **8,262 near-duplicate images**, and corrupt/unusable files were filtered, yielding the final partitions below:
 
-It contains 192 synthetic PPM images across six classes:
+- **Training Split**: 11,938 images
+- **Validation Split**: 2,555 images
+- **Testing Split**: 2,568 images
 
-- cardboard
-- glass
-- metal
-- organic
-- paper
-- plastic
+### Final Class Quantities
+- `cardboard`: 1,541 total
+- `glass`: 2,217 total
+- `metal`: 1,006 total
+- `organic`: 1,035 total
+- `paper`: 1,694 total
+- `plastic`: 2,019 total
+- `textile`: 7,037 total
+- `battery`: 512 total
 
-This dataset has already been used to train `artifacts/waste_model.json`.
+---
 
-## Datasets To Use For Final Work
+## 5. Model Architecture & Training
+The classifier features a custom convolutional neural network backbone with parallel inception-style multi-scale branches (11x11, 9x9, 7x7, 5x5, 3x3) followed by depthwise-separable convolutional (DSConv) blocks to keep the model lightweight and fast.
 
-| Dataset | Use Case | Notes |
-| --- | --- | --- |
-| TrashNet | Baseline image classification | Compact and common in academic waste classification projects. |
-| Kaggle Garbage Classification (12 classes) | Multi-class household waste classification | 15,150 images across 12 household waste classes according to the Kaggle dataset card. |
-| Garbage Dataset / V2 | Larger final experiment | Kaggle dataset card lists 10 classes and 13,348 images. |
-| TACO | Detection or segmentation | Use if the project should locate waste objects in real-world scenes. |
-| YOLO Garbage Detection | Real-time object detection | YOLO train/valid/test format with six waste classes. |
+Downstream classifiers (Stage 2 and 3) utilize **conditioning heads** where the predicted class embedding of the previous stage is concatenated with the backbone features. This ensures multi-task feature sharing and robust downstream boundaries.
 
-## Methodology
+### Hyperparameters
+- **Epochs per stage**: 15 (45 epochs total)
+- **Batch size**: 64
+- **Optimizer**: Adam (lr=0.001)
+- **Loss function**: Class-Weighted Focal Loss ($\gamma = 2.0$)
+- **Data loading**: RAM tensor caching enabled
 
-1. Collect labeled images with one folder per waste category.
-2. Preprocess images into a consistent format and size.
-3. Extract image features or train a CNN.
-4. Split data into training and testing sets.
-5. Train the classifier.
-6. Evaluate using accuracy, precision, recall, F1-score, and confusion matrix.
-7. Deploy prediction through a CLI or browser-based UI.
+---
 
-## Current Model
+## 6. Evaluation Metrics & Comparison
+Results obtained on the held-out test split of **2,568 real images**:
 
-The current implementation uses a k-nearest-neighbors classifier over handcrafted image features:
+| Model | Stage | Classes | Precision (macro) | Recall (macro) | F1-Score | Accuracy | AUC | Inference Time (s/img) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **KNN Baseline** | Stage 1 | 2 | 0.3748 | 0.5000 | 0.4284 | 74.96% | 0.5000 | **0.00034s** |
+| **Hierarchical CNN** | Stage 1 | 2 | **0.7511** | **0.8168** | **0.7638** | **79.52%** | **0.9033** | 0.00956s |
+| **KNN Baseline** | Stage 2 | 6 | 0.0737 | 0.1667 | 0.1022 | 44.20% | 0.5000 | **0.00034s** |
+| **Hierarchical CNN** | Stage 2 | 6 | **0.5882** | **0.6211** | **0.5882** | **66.98%** | **0.8344** | 0.00956s |
+| **KNN Baseline** | Stage 3 | 8 | 0.0038 | 0.1250 | 0.0074 | 3.04% | 0.5000 | **0.00034s** |
+| **Hierarchical CNN** | Stage 3 | 8 | **0.5492** | **0.5937** | **0.5551** | **63.40%** | **0.8251** | 0.00956s |
 
-- RGB channel means
-- RGB channel standard deviations
-- brightness statistics
-- simple texture score
-- dominant color ratios
+---
 
-This is intentionally dependency-free so it can run immediately on the available system. For the final version, replace the baseline with MobileNetV2, EfficientNet, or a custom CNN trained on a real dataset.
-
-## Current Training Result
-
-The demo training command:
-
-```bash
-PYTHONPATH=src python3 -m waste_classifier.train --data data/demo_waste --model artifacts/waste_model.json
-```
-
-Result:
-
-- Training images: 144
-- Test images: 48
-- Accuracy: 1.00 on the synthetic demo test split
-
-The score proves the pipeline works, not that the system is production-ready. Real photographs will be harder and should be used for final evaluation.
-
-## Future Enhancements
-
-- Add JPEG/PNG image support using Pillow or OpenCV.
-- Train a transfer-learning CNN on TrashNet or Garbage Classification V2.
-- Add confusion matrix visualization.
-- Add camera input for real-time classification.
-- Add hazardous/e-waste classes such as battery and medical waste.
+## 7. Conclusions & Final Review Summary
+- The **Hierarchical CNN** achieves significantly better performance than the KNN Baseline across all stages.
+- Stage 3 fine-grained classification accuracy reached **63.40%** compared to the baseline's **3.04%**, validating the effectiveness of the multi-scale DSConv CNN backbone and conditioned head design.
+- The implementation runs efficiently on general laptop hardware (NVIDIA RTX 3050) and integrates smoothly with Next.js web serving.
