@@ -1,0 +1,49 @@
+model,stage,metric,value
+Hierarchical CNN v2_relabeled,Stage 1,accuracy,0.879673
+Hierarchical CNN v2_relabeled,Stage 1,balanced_accuracy,0.808917
+Hierarchical CNN v2_relabeled,Stage 1,mcc,0.664182
+Hierarchical CNN v2_relabeled,Stage 1,cohen_kappa,0.658409
+Hierarchical CNN v2_relabeled,Stage 1,prec_macro,0.857003
+Hierarchical CNN v2_relabeled,Stage 1,rec_macro,0.808917
+Hierarchical CNN v2_relabeled,Stage 1,f1_macro,0.828683
+Hierarchical CNN v2_relabeled,Stage 1,prec_weighted,0.876123
+Hierarchical CNN v2_relabeled,Stage 1,rec_weighted,0.879673
+Hierarchical CNN v2_relabeled,Stage 1,f1_weighted,0.875342
+Hierarchical CNN v2_relabeled,Stage 1,roc_auc,0.923761
+Hierarchical CNN v2_relabeled,Stage 1,pr_auc,0.970923
+Hierarchical CNN v2_relabeled,Stage 2,accuracy,0.709502
+Hierarchical CNN v2_relabeled,Stage 2,balanced_accuracy,0.675055
+Hierarchical CNN v2_relabeled,Stage 2,mcc,0.616157
+Hierarchical CNN v2_relabeled,Stage 2,cohen_kappa,0.612479
+Hierarchical CNN v2_relabeled,Stage 2,prec_macro,0.631783
+Hierarchical CNN v2_relabeled,Stage 2,rec_macro,0.675055
+Hierarchical CNN v2_relabeled,Stage 2,f1_macro,0.639279
+Hierarchical CNN v2_relabeled,Stage 2,prec_weighted,0.746509
+Hierarchical CNN v2_relabeled,Stage 2,rec_weighted,0.709502
+Hierarchical CNN v2_relabeled,Stage 2,f1_weighted,0.717560
+Hierarchical CNN v2_relabeled,Stage 2,roc_auc,0.892655
+Hierarchical CNN v2_relabeled,Stage 2,pr_auc,0.000000
+Hierarchical CNN v2_relabeled,Stage 3,accuracy,0.677181
+Hierarchical CNN v2_relabeled,Stage 3,balanced_accuracy,0.621685
+Hierarchical CNN v2_relabeled,Stage 3,mcc,0.594723
+Hierarchical CNN v2_relabeled,Stage 3,cohen_kappa,0.591689
+Hierarchical CNN v2_relabeled,Stage 3,prec_macro,0.598109
+Hierarchical CNN v2_relabeled,Stage 3,rec_macro,0.621685
+Hierarchical CNN v2_relabeled,Stage 3,f1_macro,0.593954
+Hierarchical CNN v2_relabeled,Stage 3,prec_weighted,0.713360
+Hierarchical CNN v2_relabeled,Stage 3,rec_weighted,0.677181
+Hierarchical CNN v2_relabeled,Stage 3,f1_weighted,0.684352
+Hierarchical CNN v2_relabeled,Stage 3,roc_auc,0.862102
+Hierarchical CNN v2_relabeled,Stage 3,pr_auc,0.000000
+ResNet18 v2_relabeled,Stage 1,accuracy,0.933022
+ResNet18 v2_relabeled,Stage 1,balanced_accuracy,0.885413
+ResNet18 v2_relabeled,Stage 1,mcc,0.816735
+ResNet18 v2_relabeled,Stage 1,cohen_kappa,0.812037
+ResNet18 v2_relabeled,Stage 1,prec_macro,0.932689
+ResNet18 v2_relabeled,Stage 1,rec_macro,0.885413
+ResNet18 v2_relabeled,Stage 1,f1_macro,0.905826
+ResNet18 v2_relabeled,Stage 1,prec_weighted,0.932978
+ResNet18 v2_relabeled,Stage 1,rec_weighted,0.933022
+ResNet18 v2_relabeled,Stage 1,f1_weighted,0.931091
+ResNet18 v2_relabeled,Stage 1,roc_auc,0.977536
+ResNet18 v2_relabeled,Stage 1,pr_auc,0.992124

@@ -77,8 +77,12 @@ To evaluate both models on the test split, producing report card metrics and con
 set PYTHONPATH=src&& python -m waste_classifier.evaluate --data data/final --knn-model artifacts/waste_model.json --cnn-model-dir artifacts/hierarchical --out-md results/comparison.md --out-png results/comparison.png
 ```
 
-### 4. Start Next.js App
-Start the Next.js development server to browse the interactive UI:
+### 4. Start Next.js App & Inference Server
+To enable low-latency (~20ms) PyTorch inference for the web UI, start the persistent Python inference server first:
+```bash
+python scripts/persistent_server.py 5000
+```
+Then start the Next.js development server:
 ```bash
 npm run dev
 ```

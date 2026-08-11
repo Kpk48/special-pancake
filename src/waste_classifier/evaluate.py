@@ -136,12 +136,63 @@ def evaluate_models(
     knn_size = get_file_size_mb(knn_model_path)
     knn_params_count = len(knn.vectors) * len(knn.vectors[0]) if knn else 0
 
-    # 3. Load Test Data
+    # 3. Load Test Data — 224×224 with ImageNet normalization (matches MobileNetV3 backbone)
     test_transform = transforms.Compose([
-        transforms.Resize((128, 128)),
+        transforms.Resize((224, 224)),
         transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
-    
+
+    # TTA augmented transforms (applied on already-resized tensor)
+    tta_transforms = [
+        lambda t: t,                                                      # original
+        lambda t: torch.flip(t, dims=[2]),                                # horizontal flip
+        lambda t: torch.flip(t, dims=[1]),                                # vertical flip
+        lambda t: torch.clamp(t + 0.15, -3.0, 3.0),                     # brightness up
+        lambda t: torch.clamp(t - 0.15, -3.0, 3.0),                     # brightness down
+    ]
+
+    def tta_predict_cnn(
+        img_t: torch.Tensor,
+        s1: torch.nn.Module,
+        s2: torch.nn.Module,
+        s3: torch.nn.Module,
+        device: torch.device,
+    ) -> tuple[int, int, int, np.ndarray, np.ndarray, np.ndarray]:
+        """Run 5-view TTA and return averaged softmax probabilities."""
+        probs1_acc = np.zeros(2)
+        probs2_acc = np.zeros(6)
+        probs3_acc = np.zeros(len(STAGE3_CLASSES))
+
+        for aug_fn in tta_transforms:
+            aug_img = aug_fn(img_t).unsqueeze(0).to(device)
+            with torch.no_grad():
+                out1 = s1(aug_img)
+                p1 = torch.softmax(out1, dim=-1).cpu().squeeze(0).numpy()
+                pred1_v = int(out1.argmax(dim=-1).item())
+
+                p1t = torch.tensor([pred1_v], device=device)
+                out2 = s2(aug_img, p1t)
+                p2 = torch.softmax(out2, dim=-1).cpu().squeeze(0).numpy()
+                pred2_v = int(out2.argmax(dim=-1).item())
+
+                p2t = torch.tensor([pred2_v], device=device)
+                out3 = s3(aug_img, p2t)
+                p3 = torch.softmax(out3, dim=-1).cpu().squeeze(0).numpy()
+
+            probs1_acc += p1
+            probs2_acc += p2
+            probs3_acc += p3
+
+        n = len(tta_transforms)
+        prob1 = probs1_acc / n
+        prob2 = probs2_acc / n
+        prob3 = probs3_acc / n
+        pred1 = int(np.argmax(prob1))
+        pred2 = int(np.argmax(prob2))
+        pred3 = int(np.argmax(prob3))
+        return pred1, pred2, pred3, prob1, prob2, prob3
+
     test_dataset = ImageFolder(root=data_dir / "test", transform=test_transform, allow_empty=True)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
     classes = test_dataset.classes
@@ -175,29 +226,13 @@ def evaluate_models(
         gt2 = get_stage2_label(class_name)
         gt3 = STAGE3_CLASSES.index(class_name) if class_name in STAGE3_CLASSES else target3_idx
 
-        # --- CNN INFERENCE ---
+        # --- CNN INFERENCE (with TTA) ---
         t0 = time.perf_counter()
-        img_device = img_tensor.unsqueeze(0).to(device)
-        
-        with torch.no_grad():
-            # Stage 1 prediction
-            out1 = s1(img_device)
-            prob1 = torch.softmax(out1, dim=-1).cpu().squeeze(0).numpy()
-            pred1 = int(out1.argmax(dim=-1).item())
-
-            # Stage 2 prediction (conditioned on Stage 1 predicted class)
-            pred1_tensor = torch.tensor([pred1], device=device)
-            out2 = s2(img_device, pred1_tensor)
-            prob2 = torch.softmax(out2, dim=-1).cpu().squeeze(0).numpy()
-            pred2 = int(out2.argmax(dim=-1).item())
-
-            # Stage 3 prediction (conditioned on Stage 2 predicted class)
-            pred2_tensor = torch.tensor([pred2], device=device)
-            out3 = s3(img_device, pred2_tensor)
-            prob3 = torch.softmax(out3, dim=-1).cpu().squeeze(0).numpy()
-            pred3 = int(out3.argmax(dim=-1).item())
-
+        pred1, pred2, pred3, prob1, prob2, prob3 = tta_predict_cnn(
+            img_tensor, s1, s2, s3, device
+        )
         cnn_times.append(time.perf_counter() - t0)
+
 
         cnn_gt[1].append(gt1)
         cnn_pred[1].append(pred1)

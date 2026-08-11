@@ -273,8 +273,9 @@ def run_evaluation(
     log.info("[AUDIT] Running full test-set evaluation with resource monitoring...")
     
     test_transform = transforms.Compose([
-        transforms.Resize((128, 128)),
+        transforms.Resize((224, 224)),
         transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
     test_ds = ImageFolder(root=str(data_dir / "test"), transform=test_transform)
     classes = test_ds.classes

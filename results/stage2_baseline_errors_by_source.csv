@@ -1,0 +1,4 @@
+source_tag,total_images,error_count,error_rate
+gc12_,1926,72,0.037383
+gcv2_,556,69,0.124101
+taco_,86,23,0.267442

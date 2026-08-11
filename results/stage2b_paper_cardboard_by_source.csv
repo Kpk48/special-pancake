@@ -1,0 +1,7 @@
+fine_class,source_tag,total_images,error_count,error_rate
+paper,gc12_,138,29,0.210145
+paper,gcv2_,108,28,0.259259
+paper,taco_,9,8,0.888889
+cardboard,gc12_,125,17,0.136000
+cardboard,gcv2_,107,31,0.289720
+cardboard,taco_,0,0,0.000000

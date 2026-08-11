@@ -1,0 +1,9 @@
+class_name,total_images,error_count,error_rate
+battery,78,6,0.076923
+cardboard,232,48,0.206897
+glass,334,10,0.029940
+metal,152,4,0.026316
+organic,156,7,0.044872
+paper,255,65,0.254902
+plastic,304,16,0.052632
+textile,1057,8,0.007569

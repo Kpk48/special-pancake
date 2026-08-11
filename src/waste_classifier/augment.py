@@ -85,35 +85,25 @@ class TargetedAugmentedDataset(Dataset):
             transforms.RandomRotation(degrees=15),
             transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
         ])
-        self.cutout = Cutout(size=16, p=0.5)
-        self.cached_images = []
-        for i in range(len(self.base_dataset)):
-            img, target = self.base_dataset[i]
-            self.cached_images.append((transforms.ToTensor()(img), target))
+        self.cutout = Cutout(size=32, p=0.5)
+        self.normalize = transforms.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225],
+        )
 
     def __len__(self) -> int:
         return len(self.indices_map)
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
         orig_idx, should_augment = self.indices_map[index]
-        img, target = self.cached_images[orig_idx]
+        img, target = self.base_dataset[orig_idx]
 
         # Apply augmentation if flagged
         if should_augment:
-            # Assumes img is already converted to PIL Image or Tensor
-            if not isinstance(img, torch.Tensor):
-                # If PIL image, convert to tensor after augmentations
-                img = self.augment_transform(img)
-                img_tensor = transforms.ToTensor()(img)
-            else:
-                # If already tensor
-                img_tensor = self.augment_transform(img)
-            
+            img = self.augment_transform(img)
+            img_tensor = self.normalize(transforms.ToTensor()(img))
             img_tensor = self.cutout(img_tensor)
         else:
-            if not isinstance(img, torch.Tensor):
-                img_tensor = transforms.ToTensor()(img)
-            else:
-                img_tensor = img
+            img_tensor = self.normalize(transforms.ToTensor()(img))
 
         return img_tensor, target
